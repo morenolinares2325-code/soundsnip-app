@@ -1,6 +1,7 @@
 import streamlit as st
-from pydub import AudioSegment
+import soundfile as sf
 import io
+import numpy as np
 
 st.set_page_config(page_title="SoundSnip Studio", page_icon="✂️", layout="wide")
 
@@ -17,15 +18,13 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # --- MÓDULO 1: EDITOR EXPRESS FUNCIONAL ---
 with tab1:
     st.header("Editor Express: Recortar Audio")
-    uploaded_file = st.file_uploader("Sube un archivo de audio (MP3 o WAV):", type=["mp3", "wav"])
+    uploaded_file = st.file_uploader("Sube un archivo de audio (WAV, FLAC o OGG):", type=["wav", "flac", "ogg"])
     
     if uploaded_file is not None:
-        file_extension = uploaded_file.name.split(".")[-1].lower()
-        
-        # Cargar el audio con pydub
         try:
-            audio = AudioSegment.from_file(uploaded_file, format=file_extension)
-            duration_sec = len(audio) / 1000.0
+            # Leer el audio subido
+            data, samplerate = sf.read(uploaded_file)
+            duration_sec = len(data) / float(samplerate)
             
             st.success(f"Audio cargado con éxito. Duración total: **{duration_sec:.2f} segundos**.")
             st.audio(uploaded_file)
@@ -42,25 +41,24 @@ with tab1:
                 st.error("El tiempo de inicio debe ser menor que el tiempo final.")
             else:
                 if st.button("✂️ Procesar y Recortar"):
-                    # Convertir segundos a milisegundos para pydub
-                    start_ms = int(start_sec * 1000)
-                    end_ms = int(end_sec * 1000)
+                    start_sample = int(start_sec * samplerate)
+                    end_sample = int(end_sec * samplerate)
                     
-                    cropped_audio = audio[start_ms:end_ms]
+                    cropped_data = data[start_sample:end_sample]
                     
-                    # Exportar resultado a memoria
+                    # Guardar el fragmento en un buffer en formato WAV
                     buffer = io.BytesIO()
-                    cropped_audio.export(buffer, format="mp3")
+                    sf.write(buffer, cropped_data, samplerate, format='WAV')
                     buffer.seek(0)
                     
                     st.subheader("🎧 Resultado del Recorte")
-                    st.audio(buffer, format="audio/mp3")
+                    st.audio(buffer, format="audio/wav")
                     
                     st.download_button(
-                        label="⬇️ Descargar MP3 Cortado",
+                        label="⬇️ Descargar Audio Cortado (.wav)",
                         data=buffer,
                         file_name=f"recorte_{uploaded_file.name}",
-                        mime="audio/mp3"
+                        mime="audio/wav"
                     )
         except Exception as e:
             st.error(f"Error al procesar el archivo: {e}")
