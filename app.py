@@ -22,7 +22,7 @@ st.set_page_config(
 st.sidebar.caption(f"Streamlit v{st.__version__}")
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🎛️ Info")
-st.sidebar.caption("SoundSnip Studio PRO v3")
+st.sidebar.caption("SoundSnip Studio PRO v4")
 st.sidebar.caption("Todos los módulos activos")
 
 # ---------------------------------------------------------
@@ -220,7 +220,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 # ---------------------------------------------------------
 st.markdown("""
 <div class="ss-hero">
-    <h1>✂️ SoundSnip Studio <span style="color:#7c5cff;font-size:1rem;">PRO v3</span></h1>
+    <h1>✂️ SoundSnip Studio <span style="color:#7c5cff;font-size:1rem;">PRO v4</span></h1>
     <p>Edición · Análisis · Procesamiento · Reconocimiento · Conversión · Radio</p>
 </div>
 """, unsafe_allow_html=True)
@@ -391,6 +391,7 @@ def estimate_bpm(audio_mono, sr):
 
 
 def get_cookie_file():
+    """Lee cookies de Secrets y las escribe en /tmp. Silencioso."""
     try:
         content = st.secrets.get("YTDLP_COOKIES_CONTENT", None)
     except Exception:
@@ -404,13 +405,17 @@ def get_cookie_file():
     return str(cookie_path)
 
 
-# --- Procesadores de audio (reemplazan a Spleeter) ---
+# --- Procesadores de audio ---
 def apply_fade(audio, sr, fade_in_sec=0, fade_out_sec=0):
     out = audio.copy()
     if fade_in_sec > 0:
         n = int(fade_in_sec * sr)
         if n < len(out):
-            out[:n] = out[:n] * np.linspace(0, 1, n)[:, None] if out.ndim > 1 else out[:n] * np.linspace(0, 1, n)
+            ramp = np.linspace(0, 1, n)
+            if out.ndim > 1:
+                out[:n] = out[:n] * ramp[:, None]
+            else:
+                out[:n] = out[:n] * ramp
     if fade_out_sec > 0:
         n = int(fade_out_sec * sr)
         if n < len(out):
@@ -455,7 +460,7 @@ def save_audio_to_bytes(data, sr, fmt="WAV"):
     buf = io.BytesIO()
     if fmt in ("WAV", "FLAC", "OGG"):
         sf.write(buf, data, sr, format=fmt)
-    else:  # MP3
+    else:
         from pydub import AudioSegment
         samples_int = (data * 32767).astype(np.int16)
         ch = data.shape[1] if data.ndim > 1 else 1
@@ -650,7 +655,6 @@ with tabs[2]:
                 horizontal=True
             )
 
-            # =========== MODO CONVERTIR ===========
             if modo.startswith("🔄"):
                 c1, c2 = st.columns(2)
                 with c1:
@@ -677,8 +681,6 @@ with tabs[2]:
                         mime=f"audio/{fmt.lower()}",
                         use_container_width=True
                     )
-
-            # =========== MODO EFECTOS ===========
             else:
                 st.markdown("#### 🎚️ Procesadores disponibles")
 
@@ -696,19 +698,15 @@ with tabs[2]:
                     with st.spinner("Procesando..."):
                         processed = data.copy()
 
-                        # Velocidad
                         if speed != 1.0:
                             processed, sr = apply_speed(processed, sr, speed)
 
-                        # Ganancia
                         if gain_db != 0:
                             processed = apply_amplify(processed, gain_db)
 
-                        # Normalizar
                         if normalize:
                             processed = apply_normalize(processed)
 
-                        # Fades
                         if fade_in > 0 or fade_out > 0:
                             processed = apply_fade(processed, sr, fade_in, fade_out)
 
@@ -723,13 +721,6 @@ with tabs[2]:
                         mime="audio/wav",
                         use_container_width=True
                     )
-
-                st.markdown("---")
-                st.caption(
-                    "💡 **Nota**: la separación de voces/instrumentos con IA "
-                    "(Spleeter/Demucs) no está disponible porque consume demasiada "
-                    "memoria y no es compatible con Streamlit Cloud gratis."
-                )
         except Exception as e:
             st.error(f"Error: {e}")
 
@@ -848,22 +839,16 @@ with tabs[4]:
             st.warning("Sin resultados.")
 
 # =========================================================
-# TAB 6 — VIDEO → AUDIO
+# TAB 6 — VIDEO → AUDIO (con yt-dlp arreglado, sin avisos técnicos)
 # =========================================================
 with tabs[5]:
-    st.markdown("### 🔗 Extractor de audio desde vídeo / URL")
-    st.caption("Soporta YouTube, Vimeo y +1000 sitios vía yt-dlp.")
+    st.markdown("### 🔗 Video → Audio")
+    st.caption("Pega un enlace de YouTube, Vimeo, SoundCloud o similar.")
 
-    cookie_path = get_cookie_file()
-    if cookie_path:
-        st.success("🍪 Cookies de YouTube cargadas desde Secrets — 403 resuelto")
-    else:
-        st.warning(
-            "⚠️ **Sin cookies configuradas**. YouTube puede bloquear con 403. "
-            "Añade `YTDLP_COOKIES_CONTENT` en Streamlit Secrets."
-        )
-
-    url = st.text_input("🔗 Pega la URL del vídeo:", placeholder="https://www.youtube.com/watch?v=...")
+    url = st.text_input(
+        "🔗 Enlace del vídeo:",
+        placeholder="https://www.youtube.com/watch?v=..."
+    )
 
     c1, c2 = st.columns(2)
     with c1:
@@ -874,16 +859,28 @@ with tabs[5]:
     if url and st.button("🎬 Extraer audio", use_container_width=True):
         try:
             import yt_dlp
-            with st.spinner("Descargando y convirtiendo... esto puede tardar"):
+            cookie_path = get_cookie_file()
+
+            with st.spinner("🎧 Procesando el vídeo, un momento..."):
                 tmpdir = tempfile.mkdtemp()
                 out_tmpl = os.path.join(tmpdir, "%(title)s.%(ext)s")
 
                 ydl_opts = {
-                    "format": "bestaudio/best",
+                    # --- Estrategia de formato mejorada ---
+                    # Intenta mejor video+audio combinado, luego mejor video, luego mejor audio.
+                    # Evita el error "Requested format is not available"
+                    "format": "best/bestvideo+bestaudio/bestaudio/bestvideo",
+                    "ignoreerrors": True,
                     "outtmpl": out_tmpl,
                     "quiet": True,
+                    "no_warnings": True,
                     "noplaylist": True,
                     "nocheckcertificate": True,
+                    "extractor_args": {
+                        "youtube": {
+                            "player_client": ["android", "web_safari", "ios"]
+                        }
+                    },
                     "postprocessors": [{
                         "key": "FFmpegExtractAudio",
                         "preferredcodec": fmt.lower(),
@@ -896,15 +893,31 @@ with tabs[5]:
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(url, download=True)
-                    title = info.get("title", "audio")
+                    title = info.get("title", "audio") if info else "audio"
+                    duration = info.get("duration", 0) if info else 0
+                    uploader = info.get("uploader", "—") if info else "—"
 
-                files = os.listdir(tmpdir)
+                files = [f for f in os.listdir(tmpdir)
+                         if not f.endswith((".part", ".ytdl"))]
+
                 if files:
                     fp = os.path.join(tmpdir, files[0])
                     with open(fp, "rb") as f:
                         audio_bytes = f.read()
 
-                    st.success(f"✅ {title}")
+                    size_mb = len(audio_bytes) / (1024 * 1024)
+                    st.success("✅ Audio extraído correctamente")
+                    st.markdown(f"""
+                    <div class="ss-card">
+                        <span class="ss-card-badge">READY</span>
+                        <span class="ss-card-badge ss-badge-purple">{fmt} · {qual}</span>
+                        <div class="ss-card-title">{title}</div>
+                        <div class="ss-card-meta">
+                        👤 {uploader} · ⏱ {duration//60}:{duration%60:02d} · 📦 {size_mb:.1f} MB
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                     st.audio(audio_bytes, format=f"audio/{fmt.lower()}")
                     st.download_button(
                         f"⬇️ Descargar {fmt}",
@@ -914,30 +927,33 @@ with tabs[5]:
                         use_container_width=True
                     )
                 else:
-                    st.error("No se generó archivo.")
+                    st.error("No se pudo procesar el audio de este vídeo.")
         except Exception as e:
-            st.error(f"Error: {e}")
-            st.caption(
-                "Si el error es 403 Forbidden → necesitas configurar cookies. "
-                "Algunos vídeos también están protegidos por región o DRM."
-            )
-
-    with st.expander("🍪 Cómo configurar las cookies de YouTube"):
-        guia_cookies = """
-**Paso 1** — Instala una extensión para exportar cookies:
-
-- Firefox: [YT-DLP Cookie Exporter](https://addons.mozilla.org/en-GB/firefox/addon/yt-dlp-cookie-exporter/)
-- Chrome: [Get cookies.txt](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
-
-**Paso 2** — Abre YouTube en **ventana de incógnito**, inicia sesión, visita `youtube.com/robots.txt`, exporta las cookies y cierra esa ventana.
-
-**Paso 3** — En Streamlit Cloud → Settings → Secrets, añade el bloque `YTDLP_COOKIES_CONTENT` con el contenido del archivo de cookies exportado.
-
-**Paso 4** — Redespliega la app. Las cookies se inyectan automáticamente.
-
-⚠️ **Renuévalas cada 1-2 semanas** — YouTube las rota periódicamente.
-"""
-        st.markdown(guia_cookies)
+            err = str(e).lower()
+            if "403" in err or "forbidden" in err:
+                st.error(
+                    "⚠️ **Este vídeo no está disponible en este momento.** "
+                    "Puede estar restringido por región. Prueba con otro enlace."
+                )
+            elif "private" in err or "unavailable" in err:
+                st.error("🔒 **Este vídeo es privado o no está disponible.** Prueba con otro.")
+            elif "unsupported" in err or "invalid" in err:
+                st.error("🔗 **El enlace no es válido.** Comprueba que sea YouTube, Vimeo, SoundCloud, etc.")
+            elif "sign in" in err or "bot" in err:
+                st.error(
+                    "🤖 **YouTube ha pedido verificación adicional.** "
+                    "Inténtalo de nuevo en unos minutos o usa otro enlace."
+                )
+            elif "format is not available" in err:
+                st.error(
+                    "📼 **Este vídeo usa un formato no soportado actualmente.** "
+                    "Prueba con otro enlace."
+                )
+            else:
+                st.error(
+                    "😕 **No se pudo descargar este vídeo.** "
+                    "Prueba con otro enlace o inténtalo en unos minutos."
+                )
 
 # =========================================================
 # TAB 7 — SHAZAM
@@ -988,7 +1004,6 @@ with tabs[6]:
 
     st.markdown("---")
     st.caption(
-        "💡 **Reconocimiento real**: para fingerprinting auténtico (escuchar y decir "
-        "qué canción es), integra **AudD API** (audd.io) o **ACRCloud**. "
-        "La versión actual usa el nombre del archivo como pista."
+        "💡 **Reconocimiento real**: para fingerprinting auténtico, integra "
+        "**AudD API** (audd.io) o **ACRCloud**."
     )
