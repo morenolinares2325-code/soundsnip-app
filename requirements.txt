@@ -1,4 +1,5 @@
 streamlit
-numpy
-scipy
 soundfile
+numpy
+matplotlib
+requests
