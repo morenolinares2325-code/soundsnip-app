@@ -49,9 +49,9 @@ def setup_deno():
 
 import platform
 if platform.system() == "Linux":
-    DENO_PATH = setup_deno()
+    DENO_PATH = setup_deno()          # Streamlit Cloud
 else:
-    DENO_PATH = shutil.which("deno")
+    DENO_PATH = shutil.which("deno")  # Tu PC (Windows/Mac)
 FFMPEG_OK = shutil.which("ffmpeg") is not None
 
 # Mapas de formato para Video → Audio (OGG en yt-dlp se llama "vorbis")
@@ -426,13 +426,13 @@ st.sidebar.markdown("""
 <div style="text-align:center;padding:16px 0;">
     <div style="font-size:2rem;">✂️</div>
     <div style="color:#00d4a8;font-weight:800;letter-spacing:1px;">SOUNDSNIP PRO</div>
-    <div style="color:#7a8699;font-size:0.75rem;letter-spacing:2px;">v7 · NEON</div>
+    <div style="color:#7a8699;font-size:0.75rem;letter-spacing:2px;">v8 · NEON</div>
 </div>
 """, unsafe_allow_html=True)
 st.sidebar.markdown("---")
 st.sidebar.markdown(f"**Streamlit** v{st.__version__}")
 if DENO_PATH:
-    st.sidebar.success("✅ Deno activo v2.6.5")
+    st.sidebar.success("✅ Deno activo")
 else:
     st.sidebar.warning("⚠️ Deno no disponible")
 if FFMPEG_OK:
@@ -631,17 +631,79 @@ def apply_normalize(audio):
     return audio
 
 
-def apply_speed(audio, sr, factor):
-    if factor == 1.0:
-        return audio, sr
-    new_sr = int(sr * factor)
-    indices = np.linspace(0, len(audio) - 1, int(len(audio) / factor))
-    if audio.ndim > 1:
-        resampled = np.array([np.interp(indices, np.arange(len(audio)), audio[:, c])
-                              for c in range(audio.shape[1])]).T
-    else:
-        resampled = np.interp(indices, np.arange(len(audio)), audio)
-    return resampled, new_sr
+DENOISE_LEVELS = {"Desactivado": 0, "Suave": 6, "Media": 12, "Fuerte": 24}
+
+
+def _atempo_chain(t):
+    """atempo solo acepta 0.5-2.0 por filtro: se encadenan si hace falta."""
+    parts = []
+    while t > 2.0:
+        parts.append("atempo=2.0")
+        t /= 2.0
+    while t < 0.5:
+        parts.append("atempo=0.5")
+        t /= 0.5
+    if abs(t - 1.0) > 1e-3:
+        parts.append(f"atempo={t:.5f}")
+    return parts
+
+
+def build_ffmpeg_filters(sr, denoise="Desactivado", remove_mid_silence=False,
+                         silence_db=-45, silence_min=0.8,
+                         bass_db=0, mid_db=0, treble_db=0,
+                         speed=1.0, semitones=0):
+    """Cadena de filtros ffmpeg: ruido -> silencios -> EQ -> tono -> velocidad."""
+    f = [f"aresample={sr}"]
+
+    nr = DENOISE_LEVELS.get(denoise, 0)
+    if nr:
+        f.append(f"afftdn=nr={nr}:nf=-40:tn=1")
+
+    if remove_mid_silence:
+        f.append(
+            f"silenceremove=start_periods=1:start_threshold={silence_db}dB:"
+            f"stop_periods=-1:stop_duration={silence_min}:"
+            f"stop_threshold={silence_db}dB:stop_silence=0.15"
+        )
+
+    if bass_db:
+        f.append(f"bass=g={bass_db}:f=100")
+    if mid_db:
+        f.append(f"equalizer=f=1000:t=q:w=1:g={mid_db}")
+    if treble_db:
+        f.append(f"treble=g={treble_db}:f=4000")
+
+    # Tono sin cambiar velocidad: se sube/baja la frecuencia y se corrige el tempo
+    tempo = speed
+    if semitones:
+        p = 2 ** (semitones / 12)
+        f += [f"asetrate={int(round(sr * p))}", f"aresample={sr}"]
+        tempo = speed / p
+    # Velocidad sin cambiar tono
+    f += _atempo_chain(tempo)
+    return f
+
+
+def run_ffmpeg_filters(in_path, filters):
+    """Aplica la cadena con ffmpeg (rápido y con poca memoria)."""
+    out_path = os.path.splitext(in_path)[0] + "_fx.wav"
+    cmd = ["ffmpeg", "-y", "-i", in_path, "-vn", "-af", ",".join(filters),
+           "-c:a", "pcm_f32le", out_path]
+    res = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    if res.returncode != 0 or not os.path.exists(out_path):
+        raise RuntimeError(res.stderr[-1500:])
+    data, sr = sf.read(out_path, dtype="float32")
+    return data, sr
+
+
+def trim_silence_edges(audio, sr, threshold_db=-45):
+    """Recorta solo el silencio del principio y del final."""
+    level = np.abs(audio).max(axis=1) if audio.ndim > 1 else np.abs(audio)
+    idx = np.where(level > 10 ** (threshold_db / 20))[0]
+    if len(idx) == 0:
+        return audio
+    pad = int(0.05 * sr)
+    return audio[max(0, idx[0] - pad): min(len(audio), idx[-1] + pad)]
 
 
 def apply_amplify(audio, gain_db):
@@ -912,45 +974,114 @@ with tabs[2]:
                         use_container_width=True
                     )
             else:
-                st.markdown("#### 🎚️ Procesadores disponibles")
+                if not FFMPEG_OK:
+                    st.error("Los efectos necesitan ffmpeg instalado.")
+                dur_min = len(data) / sr / 60
+                if dur_min > 30:
+                    st.warning(
+                        f"Este audio dura unos {dur_min:.0f} min. Procesarlo puede tardar "
+                        "varios minutos; para probar efectos usa algo más corto."
+                    )
 
+                st.markdown("#### ⏩ Velocidad y tono")
                 col1, col2 = st.columns(2)
                 with col1:
-                    fade_in = st.slider("Fade In (s)", 0.0, 5.0, 0.5, 0.1)
-                    speed = st.slider("Velocidad (x)", 0.5, 2.0, 1.0, 0.05)
+                    speed = st.slider("Velocidad (x) · no cambia el tono", 0.5, 2.0, 1.0, 0.05)
                 with col2:
-                    fade_out = st.slider("Fade Out (s)", 0.0, 5.0, 0.5, 0.1)
+                    semitones = st.slider("Tono (semitonos) · no cambia la velocidad", -12, 12, 0, 1)
+
+                st.markdown("#### 🎛️ Ecualizador")
+                e1, e2, e3 = st.columns(3)
+                bass_db = e1.slider("Graves (dB)", -12, 12, 0, 1)
+                mid_db = e2.slider("Medios (dB)", -12, 12, 0, 1)
+                treble_db = e3.slider("Agudos (dB)", -12, 12, 0, 1)
+
+                st.markdown("#### 🧹 Limpieza")
+                l1, l2 = st.columns(2)
+                with l1:
+                    denoise = st.select_slider(
+                        "Reducción de ruido",
+                        options=list(DENOISE_LEVELS.keys()),
+                        value="Desactivado"
+                    )
+                    st.caption("Funciona mejor con ruido constante: soplido, zumbido, ventilador.")
+                with l2:
+                    silence_mode = st.selectbox(
+                        "Quitar silencios",
+                        ["No", "Solo al inicio y al final", "Todos (también en medio)"]
+                    )
+                if silence_mode != "No":
+                    s1, s2 = st.columns(2)
+                    silence_db = s1.slider(
+                        "Umbral de silencio (dB)", -70, -20, -45, 1,
+                        help="Lo que suene por debajo de este volumen se considera silencio."
+                    )
+                    silence_min = s2.slider(
+                        "Silencio mínimo a quitar (s)", 0.2, 3.0, 0.8, 0.1,
+                        disabled=silence_mode.startswith("Solo"),
+                        help="Solo se quitan los silencios más largos que esto."
+                    )
+                else:
+                    silence_db, silence_min = -45, 0.8
+
+                st.markdown("#### 🔊 Volumen, fundidos y salida")
+                v1, v2 = st.columns(2)
+                with v1:
+                    fade_in = st.slider("Fade In (s)", 0.0, 5.0, 0.5, 0.1)
                     gain_db = st.slider("Ganancia (dB)", -20, 20, 0, 1)
+                with v2:
+                    fade_out = st.slider("Fade Out (s)", 0.0, 5.0, 0.5, 0.1)
+                    out_fmt = st.selectbox("Formato de salida", ["MP3", "WAV", "FLAC"])
 
                 normalize = st.checkbox("🔊 Normalizar (peak -0.5 dB)", value=True)
 
                 if st.button("🎛️ Procesar audio", use_container_width=True):
-                    with st.spinner("Procesando..."):
-                        processed = data.copy()
+                    try:
+                        with st.spinner("Procesando..."):
+                            tmpdir = tempfile.mkdtemp()
+                            ext = os.path.splitext(up2.name)[1].lower() or ".wav"
+                            in_path = os.path.join(tmpdir, "input" + ext)
+                            with open(in_path, "wb") as fh:
+                                fh.write(up2.getbuffer())
 
-                        if speed != 1.0:
-                            processed, sr = apply_speed(processed, sr, speed)
+                            filters = build_ffmpeg_filters(
+                                sr, denoise, silence_mode.startswith("Todos"),
+                                silence_db, silence_min,
+                                bass_db, mid_db, treble_db,
+                                speed, semitones
+                            )
+                            processed, out_sr = run_ffmpeg_filters(in_path, filters)
 
-                        if gain_db != 0:
-                            processed = apply_amplify(processed, gain_db)
+                            if silence_mode.startswith("Solo"):
+                                processed = trim_silence_edges(processed, out_sr, silence_db)
+                            if gain_db != 0:
+                                processed = apply_amplify(processed, gain_db)
+                            if normalize:
+                                processed = apply_normalize(processed)
+                            else:
+                                processed = np.clip(processed, -1.0, 1.0)
+                            if fade_in > 0 or fade_out > 0:
+                                processed = apply_fade(processed, out_sr, fade_in, fade_out)
 
-                        if normalize:
-                            processed = apply_normalize(processed)
+                            buf = save_audio_to_bytes(processed, out_sr, out_fmt)
 
-                        if fade_in > 0 or fade_out > 0:
-                            processed = apply_fade(processed, sr, fade_in, fade_out)
-
-                        buf = save_audio_to_bytes(processed, sr, "WAV")
-
-                    st.success("✅ Procesado completado")
-                    st.audio(buf, format="audio/wav")
-                    st.download_button(
-                        "⬇️ Descargar procesado",
-                        buf,
-                        file_name=f"procesado_{up2.name.split('.')[0]}.wav",
-                        mime="audio/wav",
-                        use_container_width=True
-                    )
+                        st.success("✅ Procesado completado")
+                        st.caption(
+                            f"Duración: {len(data) / sr:.1f} s → {len(processed) / out_sr:.1f} s"
+                        )
+                        st.audio(buf, format=MIME_MAP[out_fmt])
+                        base = os.path.splitext(up2.name)[0]
+                        st.download_button(
+                            f"⬇️ Descargar {out_fmt}",
+                            buf,
+                            file_name=f"procesado_{base}.{out_fmt.lower()}",
+                            mime=MIME_MAP[out_fmt],
+                            use_container_width=True
+                        )
+                    except Exception as e:
+                        st.error("No se pudo procesar el audio.")
+                        with st.expander("Detalles técnicos"):
+                            st.code(str(e))
         except Exception as e:
             st.error(f"Error: {e}")
 
