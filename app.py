@@ -6,7 +6,6 @@ import requests
 import io
 import os
 import tempfile
-from scipy.io import wavfile
 from scipy.signal import find_peaks
 
 # =========================================================
@@ -19,23 +18,22 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Aviso de versión (útil para debug)
+st.sidebar.caption(f"Streamlit v{st.__version__}")
+
 # ---------------------------------------------------------
-# CSS INSTITUCIONAL (paleta tipo Bloomberg/TradingView)
+# CSS INSTITUCIONAL
 # ---------------------------------------------------------
 CUSTOM_CSS = """
 <style>
-    /* Fondo general */
     .stApp {
         background: linear-gradient(180deg, #0a0e14 0%, #0d1219 100%);
         color: #e8edf4;
     }
-    
-    /* Ocultar header/footer de Streamlit */
     header[data-testid="stHeader"] { background: transparent; }
     footer { visibility: hidden; }
     #MainMenu { visibility: hidden; }
-    
-    /* Título principal */
+
     .ss-hero {
         background: linear-gradient(135deg, #141a24 0%, #1c2430 100%);
         border: 1px solid #232c3a;
@@ -55,8 +53,7 @@ CUSTOM_CSS = """
         margin: 6px 0 0 0;
         font-size: 0.95rem;
     }
-    
-    /* Tabs */
+
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background: #0a0e14;
@@ -76,8 +73,7 @@ CUSTOM_CSS = """
         background: #00d4a8 !important;
         color: #0a0e14 !important;
     }
-    
-    /* Cards */
+
     .ss-card {
         background: #141a24;
         border: 1px solid #232c3a;
@@ -112,8 +108,7 @@ CUSTOM_CSS = """
         margin-right: 6px;
         text-transform: uppercase;
     }
-    
-    /* Inputs */
+
     .stTextInput input, .stSelectbox select {
         background: #141a24 !important;
         border: 1px solid #232c3a !important;
@@ -124,8 +119,7 @@ CUSTOM_CSS = """
         border-color: #00d4a8 !important;
         box-shadow: 0 0 0 2px rgba(0,212,168,0.2) !important;
     }
-    
-    /* Botones */
+
     .stButton button {
         background: #00d4a8;
         color: #0a0e14;
@@ -140,15 +134,13 @@ CUSTOM_CSS = """
         transform: translateY(-1px);
         box-shadow: 0 4px 16px rgba(0,212,168,0.3);
     }
-    
-    /* Player audio */
+
     audio {
         width: 100%;
         border-radius: 10px;
         background: #141a24;
     }
-    
-    /* Sección de análisis */
+
     .ss-analysis {
         background: #141a24;
         border-left: 3px solid #7c5cff;
@@ -166,20 +158,17 @@ CUSTOM_CSS = """
         border-radius: 6px;
         margin: 4px 6px 4px 0;
     }
-    
-    /* Progress bar */
+
     .stProgress > div > div > div {
         background-color: #00d4a8;
     }
-    
-    /* Alertas */
+
     .stAlert {
         background: #141a24 !important;
         border: 1px solid #232c3a !important;
         border-radius: 10px !important;
     }
-    
-    /* Expander */
+
     .streamlit-expanderHeader {
         background: #141a24 !important;
         border-radius: 10px !important;
@@ -202,6 +191,13 @@ st.markdown("""
 # ---------------------------------------------------------
 # HELPERS
 # ---------------------------------------------------------
+def safe_image(source, **kwargs):
+    """st.image() compatible con Streamlit <1.36 y >=1.36."""
+    try:
+        st.image(source, use_container_width=True, **kwargs)
+    except TypeError:
+        st.image(source, use_column_width=True, **kwargs)
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def search_itunes(query: str, limit: int = 12):
     try:
@@ -227,7 +223,7 @@ def search_radio(query: str, limit: int = 15):
         return []
 
 def load_audio_safe(uploaded):
-    """Intenta leer cualquier formato. Fallback a pydub para MP3."""
+    """Intenta leer cualquier formato. Fallback a pydub para MP3/M4A."""
     uploaded.seek(0)
     try:
         data, sr = sf.read(uploaded)
@@ -271,12 +267,10 @@ def detect_sections(audio_mono, sr):
     ])
     if len(rms) < 4:
         return []
-    # Normalizar
     rms_norm = (rms - rms.min()) / (rms.max() - rms.min() + 1e-9)
-    # Encontrar picos (posibles coros/estribillos = alta energía)
     peaks, props = find_peaks(rms_norm, height=0.6, distance=4)
     sections = []
-    for i, p in enumerate(peaks):
+    for p in peaks:
         t_start = p * 0.5
         t_end = min((p + 6) * 0.5, len(audio_mono) / sr)
         sections.append({
@@ -288,7 +282,7 @@ def detect_sections(audio_mono, sr):
     return sections[:8]
 
 def estimate_bpm(audio_mono, sr):
-    """Estimación rápida de BPM por autocorrelación."""
+    """Estimación rápida de BPM por autocorrelación con librosa."""
     try:
         import librosa
         tempo, _ = librosa.beat.beat_track(y=audio_mono.astype(np.float32), sr=sr)
@@ -328,7 +322,6 @@ with tabs[0]:
             audio_mono = data.mean(axis=1) if len(data.shape) > 1 else data
             duration = len(data) / sr
 
-            # Player + métricas
             up.seek(0)
             st.audio(up)
 
@@ -339,17 +332,15 @@ with tabs[0]:
             bpm = estimate_bpm(audio_mono, sr)
             c4.metric("🥁 BPM aprox.", bpm if bpm else "—")
 
-            # Waveform
             st.markdown("#### 📊 Onda sonora")
             st.pyplot(draw_waveform(audio_mono, sr))
 
-            # Análisis estructural
             with st.spinner("Analizando estructura (secciones, energía)..."):
                 sections = detect_sections(audio_mono, sr)
 
             if sections:
                 st.markdown("#### 🎼 Secciones detectadas")
-                cols = st.columns(len(sections[:4]))
+                cols = st.columns(min(len(sections), 4))
                 for i, sec in enumerate(sections[:4]):
                     with cols[i]:
                         st.markdown(f"""
@@ -362,7 +353,6 @@ with tabs[0]:
                         </div>
                         """, unsafe_allow_html=True)
 
-            # Recorte
             st.markdown("#### ✂️ Ajustar recorte")
             col1, col2 = st.columns(2)
             with col1:
@@ -435,7 +425,7 @@ with tabs[2]:
     if up2 is not None:
         try:
             data, sr = load_audio_safe(up2)
-            st.info(f"Origen: {sr} Hz · {data.shape if hasattr(data,'shape') else '—'}")
+            st.info(f"Origen: {sr} Hz · canales: {data.shape[1] if len(data.shape) > 1 else 1}")
 
             c1, c2 = st.columns(2)
             with c1:
@@ -453,7 +443,21 @@ with tabs[2]:
             if st.button("🚀 Convertir", use_container_width=True):
                 with st.spinner("Convirtiendo..."):
                     buf = io.BytesIO()
-                    sf.write(buf, data, target_sr, format=fmt)
+                    if fmt in ("WAV", "FLAC", "OGG"):
+                        sf.write(buf, data, target_sr, format=fmt)
+                    else:
+                        # MP3 vía pydub
+                        from pydub import AudioSegment
+                        samples_int = (data * 32767).astype(np.int16)
+                        seg = AudioSegment(
+                            samples_int.tobytes(),
+                            frame_rate=target_sr,
+                            sample_width=2,
+                            channels=data.shape[1] if len(data.shape) > 1 else 1
+                        )
+                        kbps = {"Original": "320", "Alta (320 kbps)": "320",
+                                "Media (192 kbps)": "192", "Baja (128 kbps)": "128"}[quality]
+                        seg.export(buf, format="mp3", bitrate=f"{kbps}k")
                     buf.seek(0)
                 st.success(f"Convertido a {fmt} · {target_sr} Hz")
                 st.audio(buf)
@@ -515,9 +519,9 @@ with tabs[4]:
             cols = st.columns(3)
             for i, t in enumerate(tracks):
                 with cols[i % 3]:
-                    art = t.get("artworkUrl100", "").replace("100x100", "300x300")
+                    art = (t.get("artworkUrl100") or "").replace("100x100", "300x300")
                     if art:
-                        st.image(art, use_column_width=True)
+                        safe_image(art)
                     st.markdown(f"""
                     <div class="ss-card">
                         <div class="ss-card-title">{t.get('trackName','—')}</div>
@@ -589,13 +593,17 @@ with tabs[5]:
             st.caption("Algunos vídeos están protegidos o bloqueados por región.")
 
 # =========================================================
-# TAB 7 — SHAZAM (reconocimiento)
+# TAB 7 — SHAZAM (reconocimiento básico)
 # =========================================================
 with tabs[6]:
     st.markdown("### 🎤 Shazam — Reconocimiento de audio")
     st.caption("Sube un fragmento o graba desde el micrófono. Identificamos la canción.")
 
-    modo = st.radio("Modo", ["📁 Subir fragmento", "🎤 Grabar (no soportado en cloud)"], horizontal=True)
+    modo = st.radio(
+        "Modo",
+        ["📁 Subir fragmento", "🎤 Grabar (no soportado en cloud)"],
+        horizontal=True
+    )
 
     if modo.startswith("📁"):
         frag = st.file_uploader(
@@ -607,18 +615,17 @@ with tabs[6]:
             st.audio(frag)
             if st.button("🔎 Identificar canción", use_container_width=True):
                 with st.spinner("Analizando huella acústica..."):
-                    # Estrategia: usar nombre del archivo como pista + iTunes search
                     hint = os.path.splitext(frag.name)[0].replace("_", " ").replace("-", " ")
                     results = search_itunes(hint, limit=3)
 
                 if results:
                     st.success("🎯 Coincidencias encontradas")
                     for r in results:
-                        art = r.get("artworkUrl100", "").replace("100x100", "300x300")
+                        art = (r.get("artworkUrl100") or "").replace("100x100", "300x300")
                         c1, c2 = st.columns([1, 3])
                         with c1:
                             if art:
-                                st.image(art)
+                                safe_image(art)
                         with c2:
                             st.markdown(f"""
                             <div class="ss-card">
