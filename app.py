@@ -8,29 +8,28 @@ import requests
 st.set_page_config(page_title="SoundSnip Studio", page_icon="✂️", layout="wide")
 
 st.title("✂️ SoundSnip Studio")
-st.caption("Herramientas avanzadas de edición, búsqueda y procesamiento de audio.")
+st.caption("Herramientas de edición, búsqueda y procesamiento de audio real.")
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "✂️ Editor Express", 
     "🔍 Banco SFX", 
-    "📥 Extractor MP3", 
-    "🎛️ Separador Stem",
+    "📥 Extractor / Convertidor", 
     "📻 Radio Live",
-    "🎙️ Reconocedor Shazam"
+    "🎙️ Buscador de Música"
 ])
 
 # ==========================================
-# 1. EDITOR EXPRESS CON ONDA VISUAL (HISTOGRAMA)
+# 1. EDITOR EXPRESS REAL (Corte exacto + Onda)
 # ==========================================
 with tab1:
     st.header("1. Editor Express: Recortar Audio con Forma de Onda")
-    uploaded_file = st.file_uploader("Sube un archivo de audio (WAV, FLAC, OGG):", type=["wav", "flac", "ogg"])
+    uploaded_file = st.file_uploader("Sube un archivo de audio (WAV, FLAC, OGG):", type=["wav", "flac", "ogg"], key="editor_file")
     
     if uploaded_file is not None:
         try:
             data, samplerate = sf.read(uploaded_file)
             
-            # Si el audio es estéreo, convertimos a mono para el gráfico
+            # Matriz mono para la representación visual
             if len(data.shape) > 1:
                 audio_mono = data.mean(axis=1)
             else:
@@ -38,13 +37,13 @@ with tab1:
                 
             duration_sec = len(data) / float(samplerate)
             
-            st.success(f"Audio cargado. Duración: **{duration_sec:.2f} segundos** | Frecuencia: **{samplerate} Hz**")
+            st.success(f"Audio cargado. Duración: **{duration_sec:.2f} segundos** | Muestreo: **{samplerate} Hz**")
             st.audio(uploaded_file)
             
-            # --- Visualización de la Forma de Onda ---
+            # Dibuja la onda sonora real
             st.subheader("📊 Visualización de la Onda Sonora")
             fig, ax = plt.subplots(figsize=(10, 2.5))
-            fig.patch.set_facecolor('#0e1117')  # Fondo oscuro
+            fig.patch.set_facecolor('#0e1117')
             ax.set_facecolor('#0e1117')
             
             time_axis = np.linspace(0, duration_sec, num=len(audio_mono))
@@ -56,7 +55,7 @@ with tab1:
             
             st.pyplot(fig)
             
-            # --- Ajuste de Recorte ---
+            # Proceso de recorte real
             st.subheader("✂️ Ajustar Puntos de Corte")
             col1, col2 = st.columns(2)
             
@@ -88,99 +87,118 @@ with tab1:
                         mime="audio/wav"
                     )
         except Exception as e:
-            st.error(f"Error al leer el archivo de audio: {e}")
+            st.error(f"Error al procesar el archivo: {e}")
 
 # ==========================================
-# 2. BANCO DE SFX CON BUSCADOR DINÁMICO
+# 2. BANCO DE SFX REAL (Consulta API iTunes en vivo)
 # ==========================================
 with tab2:
-    st.header("2. Banco de Efectos de Sonido (SFX)")
-    sfx_query = st.text_input("🔍 Buscar efecto de sonido (ej: 'applause', 'bell', 'laser', 'explosion'):", value="bell")
+    st.header("2. Banco SFX y Previsulización de Efectos/Sonidos")
+    sfx_query = st.text_input("🔍 Buscar efecto o sonido (ej: 'rain', 'bell', 'guitar', 'applause'):", value="bell")
     
     if sfx_query:
-        st.write(f"Resultados de búsqueda para: **{sfx_query}**")
-        # Búsqueda dinámica en API pública de efectos
+        st.write(f"Resultados en tiempo real para: **{sfx_query}**")
         try:
-            url = f"https://freesound.org/apiv2/search/text/?query={sfx_query}&token=YOUR_API_KEY" # Fallback simulado para vista rápida
-            # Usamos lista de previsualización mientras se integra API token
-            effects = [
-                {"nombre": f"{sfx_query.capitalize()} - Variación 1", "url": "https://www.soundjay.com/buttons/button-1.mp3"},
-                {"nombre": f"{sfx_query.capitalize()} - Variación 2", "url": "https://www.soundjay.com/buttons/button-2.mp3"},
-                {"nombre": f"{sfx_query.capitalize()} - Impacto FX", "url": "https://www.soundjay.com/buttons/button-3.mp3"},
-            ]
+            # Petición HTTP real a la API pública
+            api_url = f"https://itunes.apple.com/search?term={sfx_query}&entity=song&limit=6"
+            response = requests.get(api_url).json()
             
-            for item in effects:
-                col_title, col_player = st.columns([1, 2])
-                with col_title:
-                    st.write(f"🔊 **{item['nombre']}**")
-                with col_player:
-                    st.audio(item['url'])
+            results = response.get("results", [])
+            if results:
+                for item in results:
+                    col_info, col_player = st.columns([1, 2])
+                    with col_info:
+                        st.write(f"🔊 **{item.get('trackName', 'Sonido')}**")
+                        st.caption(f"Artista/Origen: {item.get('artistName', 'Desconocido')}")
+                    with col_player:
+                        preview_url = item.get("previewUrl")
+                        if preview_url:
+                            st.audio(preview_url)
+            else:
+                st.warning("No se encontraron efectos para esa búsqueda.")
         except Exception as e:
-            st.error("No se pudieron cargar los efectos de sonido.")
+            st.error(f"Error al conectar con el servidor de sonido: {e}")
 
 # ==========================================
-# 3. EXTRACTOR MP3 CON DESPLEGABLE DE CALIDAD
+# 3. EXTRACTOR / CONVERTIDOR DE AUDIO REAL
 # ==========================================
 with tab3:
-    st.header("3. Extractor de Audio de Vídeo/Música")
-    st.file_uploader("Sube el archivo fuente (MP4, MOV, MKV, WAV):", type=["mp4", "mov", "mkv", "wav"])
+    st.header("3. Extractor y Convertidor de Audio")
+    uploaded_convert = st.file_uploader("Sube tu archivo de audio (WAV, FLAC, OGG):", type=["wav", "flac", "ogg"], key="convert_file")
     
-    st.subheader("⚙️ Configuración de Salida")
-    col_fmt, col_bitrate = st.columns(2)
-    
-    with col_fmt:
-        format_choice = st.selectbox("Formato de exportación:", ["MP3", "WAV", "AAC", "FLAC"])
-    
-    with col_bitrate:
-        quality_choice = st.selectbox("Calidad de Audio (Bitrate):", [
-            "320 kbps (Calidad Máxima / Estudio)",
-            "256 kbps (Alta Calidad)",
-            "192 kbps (Estándar / Recomendado)",
-            "128 kbps (Economía de Espacio)"
-        ])
-    
-    if st.button("🚀 Extraer y Convertir"):
-        st.info(f"Procesando extracción en **{format_choice}** a **{quality_choice.split(' ')[0]} {quality_choice.split(' ')[1]}**...")
-        st.success("¡Extracción completada con éxito! (Listo para descargar)")
+    if uploaded_convert is not None:
+        try:
+            data, samplerate = sf.read(uploaded_convert)
+            st.info(f"Archivo subido correctamente. Frecuencia de muestreo original: **{samplerate} Hz**")
+            
+            output_format = st.selectbox("Selecciona formato de conversión:", ["WAV", "FLAC", "OGG"])
+            
+            if st.button("🚀 Convertir y Procesar"):
+                buffer = io.BytesIO()
+                sf.write(buffer, data, samplerate, format=output_format)
+                buffer.seek(0)
+                
+                st.success(f"¡Convertido con éxito a formato {output_format}!")
+                st.audio(buffer, format=f"audio/{output_format.lower()}")
+                
+                st.download_button(
+                    label=f"⬇️ Descargar en {output_format}",
+                    data=buffer,
+                    file_name=f"convertido_{uploaded_convert.name.split('.')[0]}.{output_format.lower()}",
+                    mime=f"audio/{output_format.lower()}"
+                )
+        except Exception as e:
+            st.error(f"Error en la conversión: {e}")
 
 # ==========================================
-# 4. SEPARADOR STEM
+# 4. RADIO LIVE REAL (Conexión API Radio Browser)
 # ==========================================
 with tab4:
-    st.header("4. Separador de Voces e Instrumentales (Stems)")
-    st.file_uploader("Sube la canción a separar:", type=["wav", "mp3"])
-
-# ==========================================
-# 5. RADIO LIVE CON BUSCADOR DE EMISORAS
-# ==========================================
-with tab5:
-    st.header("5. Emisoras de Radio en Directo")
-    radio_search = st.text_input("🔍 Buscar emisoras por género, ciudad o país (ej: 'Lo-Fi', 'Spain', 'Jazz'):", value="Lo-Fi")
+    st.header("4. Emisoras de Radio en Directo (Buscador Global)")
+    radio_search = st.text_input("🔍 Buscar emisoras por género, ciudad o país:", value="Lo-Fi")
     
     if radio_search:
-        st.write(f"Buscando emisoras asociadas a: **{radio_search}**")
-        
-        # Conexión con API global gratuita de Radio Browser
         try:
-            res = requests.get(f"https://de1.api.radio-browser.info/json/stations/byname/{radio_search}?limit=5")
+            res = requests.get(f"https://de1.api.radio-browser.info/json/stations/byname/{radio_search}?limit=5", timeout=5)
             stations = res.json()
             
             if stations:
                 for st_info in stations:
-                    if st_info.get("url_resolved"):
-                        st.write(f"📻 **{st_info.get('name', 'Emisora')}** ({st_info.get('country', 'Global')})")
-                        st.audio(st_info.get("url_resolved"))
+                    stream_url = st_info.get("url_resolved") or st_info.get("url")
+                    if stream_url:
+                        st.write(f"📻 **{st_info.get('name', 'Emisora')}** — *{st_info.get('country', 'Global')}*")
+                        st.audio(stream_url)
             else:
-                st.warning("No se encontraron emisoras con ese término de búsqueda. Probando reproductor genérico...")
-                st.audio("https://stream.zeno.fm/f3wvbbqmdg8uv")
+                st.warning("No se encontraron emisoras activas con ese término.")
         except Exception:
+            st.warning("Servidor de radio no disponible momentáneamente. Emisora por defecto:")
             st.audio("https://stream.zeno.fm/f3wvbbqmdg8uv")
 
 # ==========================================
-# 6. RECONOCEDOR SHAZAM
+# 5. BUSCADOR Y RECONOCEDOR DE MÚSICA REAL
 # ==========================================
-with tab6:
-    st.header("6. Reconocedor de Música")
-    if st.button("🎙️ Escuchar e Identificar"):
-        with st.spinner("Escuchando e identificando huella acústica..."):
-            st.success("🎵 Canción identificada: **Trading Beats - Lo-Fi Chill**")
+with tab5:
+    st.header("5. Buscador de Canciones y Metadatos")
+    song_query = st.text_input("🔍 Introduce el nombre de una canción o letra para identificar sus datos:", value="Shape of You")
+    
+    if song_query:
+        try:
+            res = requests.get(f"https://itunes.apple.com/search?term={song_query}&entity=song&limit=3").json()
+            tracks = res.get("results", [])
+            
+            if tracks:
+                for track in tracks:
+                    col_img, col_det = st.columns([1, 3])
+                    with col_img:
+                        if track.get("artworkUrl100"):
+                            st.image(track.get("artworkUrl100"))
+                    with col_det:
+                        st.subheader(track.get("trackName"))
+                        st.write(f"**Artista:** {track.get('artistName')}")
+                        st.write(f"**Álbum:** {track.get('collectionName')}")
+                        if track.get("previewUrl"):
+                            st.audio(track.get("previewUrl"))
+            else:
+                st.warning("No se encontraron resultados para esta búsqueda.")
+        except Exception as e:
+            st.error(f"Error al realizar la consulta: {e}")
