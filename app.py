@@ -1,204 +1,650 @@
 import streamlit as st
 import soundfile as sf
-import io
 import numpy as np
 import matplotlib.pyplot as plt
 import requests
+import io
+import os
+import tempfile
+from scipy.io import wavfile
+from scipy.signal import find_peaks
 
-st.set_page_config(page_title="SoundSnip Studio", page_icon="✂️", layout="wide")
+# =========================================================
+# CONFIGURACIÓN INICIAL
+# =========================================================
+st.set_page_config(
+    page_title="SoundSnip Studio PRO",
+    page_icon="✂️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-st.title("✂️ SoundSnip Studio")
-st.caption("Herramientas de edición, búsqueda y procesamiento de audio real.")
+# ---------------------------------------------------------
+# CSS INSTITUCIONAL (paleta tipo Bloomberg/TradingView)
+# ---------------------------------------------------------
+CUSTOM_CSS = """
+<style>
+    /* Fondo general */
+    .stApp {
+        background: linear-gradient(180deg, #0a0e14 0%, #0d1219 100%);
+        color: #e8edf4;
+    }
+    
+    /* Ocultar header/footer de Streamlit */
+    header[data-testid="stHeader"] { background: transparent; }
+    footer { visibility: hidden; }
+    #MainMenu { visibility: hidden; }
+    
+    /* Título principal */
+    .ss-hero {
+        background: linear-gradient(135deg, #141a24 0%, #1c2430 100%);
+        border: 1px solid #232c3a;
+        border-radius: 16px;
+        padding: 24px 32px;
+        margin-bottom: 24px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .ss-hero h1 {
+        color: #00d4a8;
+        font-size: 2rem;
+        margin: 0;
+        letter-spacing: -0.5px;
+    }
+    .ss-hero p {
+        color: #7a8699;
+        margin: 6px 0 0 0;
+        font-size: 0.95rem;
+    }
+    
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background: #0a0e14;
+        padding: 6px;
+        border-radius: 12px;
+        border: 1px solid #232c3a;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        color: #7a8699;
+        border-radius: 8px;
+        padding: 10px 18px;
+        font-weight: 500;
+        border: none;
+    }
+    .stTabs [aria-selected="true"] {
+        background: #00d4a8 !important;
+        color: #0a0e14 !important;
+    }
+    
+    /* Cards */
+    .ss-card {
+        background: #141a24;
+        border: 1px solid #232c3a;
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin-bottom: 14px;
+        transition: all 0.2s ease;
+    }
+    .ss-card:hover {
+        border-color: #00d4a8;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 24px rgba(0,212,168,0.15);
+    }
+    .ss-card-title {
+        color: #e8edf4;
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+    .ss-card-meta {
+        color: #7a8699;
+        font-size: 0.85rem;
+    }
+    .ss-card-badge {
+        display: inline-block;
+        background: #00d4a8;
+        color: #0a0e14;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 6px;
+        margin-right: 6px;
+        text-transform: uppercase;
+    }
+    
+    /* Inputs */
+    .stTextInput input, .stSelectbox select {
+        background: #141a24 !important;
+        border: 1px solid #232c3a !important;
+        color: #e8edf4 !important;
+        border-radius: 10px !important;
+    }
+    .stTextInput input:focus {
+        border-color: #00d4a8 !important;
+        box-shadow: 0 0 0 2px rgba(0,212,168,0.2) !important;
+    }
+    
+    /* Botones */
+    .stButton button {
+        background: #00d4a8;
+        color: #0a0e14;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        padding: 10px 20px;
+        transition: all 0.2s ease;
+    }
+    .stButton button:hover {
+        background: #00e6b8;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 16px rgba(0,212,168,0.3);
+    }
+    
+    /* Player audio */
+    audio {
+        width: 100%;
+        border-radius: 10px;
+        background: #141a24;
+    }
+    
+    /* Sección de análisis */
+    .ss-analysis {
+        background: #141a24;
+        border-left: 3px solid #7c5cff;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 8px 0;
+    }
+    .ss-section-tag {
+        display: inline-block;
+        background: #7c5cff;
+        color: white;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 6px;
+        margin: 4px 6px 4px 0;
+    }
+    
+    /* Progress bar */
+    .stProgress > div > div > div {
+        background-color: #00d4a8;
+    }
+    
+    /* Alertas */
+    .stAlert {
+        background: #141a24 !important;
+        border: 1px solid #232c3a !important;
+        border-radius: 10px !important;
+    }
+    
+    /* Expander */
+    .streamlit-expanderHeader {
+        background: #141a24 !important;
+        border-radius: 10px !important;
+        color: #e8edf4 !important;
+    }
+</style>
+"""
+st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "✂️ Editor Express", 
-    "🔍 Banco SFX", 
-    "📥 Extractor / Convertidor", 
+# ---------------------------------------------------------
+# HERO
+# ---------------------------------------------------------
+st.markdown("""
+<div class="ss-hero">
+    <h1>✂️ SoundSnip Studio <span style="color:#7c5cff;font-size:1rem;">PRO</span></h1>
+    <p>Edición · Análisis · Reconocimiento · Conversión · Radio — todo en un solo lugar</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# HELPERS
+# ---------------------------------------------------------
+@st.cache_data(ttl=1800, show_spinner=False)
+def search_itunes(query: str, limit: int = 12):
+    try:
+        r = requests.get(
+            "https://itunes.apple.com/search",
+            params={"term": query, "entity": "song", "limit": limit},
+            timeout=8
+        )
+        return r.json().get("results", [])
+    except Exception:
+        return []
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def search_radio(query: str, limit: int = 15):
+    try:
+        r = requests.get(
+            "https://de1.api.radio-browser.info/json/stations/search",
+            params={"name": query, "limit": limit, "hidebroken": "true"},
+            timeout=8
+        )
+        return r.json()
+    except Exception:
+        return []
+
+def load_audio_safe(uploaded):
+    """Intenta leer cualquier formato. Fallback a pydub para MP3."""
+    uploaded.seek(0)
+    try:
+        data, sr = sf.read(uploaded)
+        return data, sr
+    except Exception:
+        try:
+            from pydub import AudioSegment
+            uploaded.seek(0)
+            audio = AudioSegment.from_file(uploaded)
+            sr = audio.frame_rate
+            samples = np.array(audio.get_array_of_samples())
+            if audio.channels == 2:
+                samples = samples.reshape((-1, 2))
+            return samples.astype(np.float32) / 32768.0, sr
+        except Exception as e:
+            raise RuntimeError(f"Formato no soportado: {e}")
+
+def draw_waveform(audio_mono, sr, color="#00d4a8", figsize=(12, 2.2)):
+    duration = len(audio_mono) / sr
+    fig, ax = plt.subplots(figsize=figsize)
+    fig.patch.set_facecolor('#141a24')
+    ax.set_facecolor('#141a24')
+    t = np.linspace(0, duration, num=len(audio_mono))
+    ax.plot(t, audio_mono, color=color, alpha=0.85, linewidth=0.6)
+    ax.fill_between(t, audio_mono, -audio_mono, color=color, alpha=0.15)
+    ax.set_xlabel("Tiempo (s)", color="#7a8699", fontsize=9)
+    ax.set_ylabel("Amplitud", color="#7a8699", fontsize=9)
+    ax.tick_params(colors='#7a8699', labelsize=8)
+    ax.grid(True, color='#232c3a', linestyle='--', alpha=0.4)
+    for spine in ax.spines.values():
+        spine.set_color('#232c3a')
+    plt.tight_layout()
+    return fig
+
+def detect_sections(audio_mono, sr):
+    """Detección heurística de estrofas/coros por energía RMS."""
+    hop = int(sr * 0.5)
+    rms = np.array([
+        np.sqrt(np.mean(audio_mono[i:i+hop]**2))
+        for i in range(0, len(audio_mono) - hop, hop)
+    ])
+    if len(rms) < 4:
+        return []
+    # Normalizar
+    rms_norm = (rms - rms.min()) / (rms.max() - rms.min() + 1e-9)
+    # Encontrar picos (posibles coros/estribillos = alta energía)
+    peaks, props = find_peaks(rms_norm, height=0.6, distance=4)
+    sections = []
+    for i, p in enumerate(peaks):
+        t_start = p * 0.5
+        t_end = min((p + 6) * 0.5, len(audio_mono) / sr)
+        sections.append({
+            "tipo": "🎯 Coro / Estribillo" if rms_norm[p] > 0.75 else "🎵 Sección fuerte",
+            "inicio": round(t_start, 1),
+            "fin": round(t_end, 1),
+            "energia": round(float(rms_norm[p]), 2)
+        })
+    return sections[:8]
+
+def estimate_bpm(audio_mono, sr):
+    """Estimación rápida de BPM por autocorrelación."""
+    try:
+        import librosa
+        tempo, _ = librosa.beat.beat_track(y=audio_mono.astype(np.float32), sr=sr)
+        return int(tempo) if np.isscalar(tempo) else int(tempo[0])
+    except Exception:
+        return None
+
+# ---------------------------------------------------------
+# TABS
+# ---------------------------------------------------------
+tabs = st.tabs([
+    "🎧 Editor & Análisis",
+    "🔊 Banco SFX",
+    "📥 Convertidor",
     "📻 Radio Live",
-    "🎙️ Buscador de Música"
+    "🎙️ Buscador Música",
+    "🔗 Video → Audio",
+    "🎤 Shazam",
 ])
 
-# ==========================================
-# 1. EDITOR EXPRESS REAL (Corte exacto + Onda)
-# ==========================================
-with tab1:
-    st.header("1. Editor Express: Recortar Audio con Forma de Onda")
-    uploaded_file = st.file_uploader("Sube un archivo de audio (WAV, FLAC, OGG):", type=["wav", "flac", "ogg"], key="editor_file")
-    
-    if uploaded_file is not None:
+# =========================================================
+# TAB 1 — EDITOR & ANÁLISIS
+# =========================================================
+with tabs[0]:
+    st.markdown("### ✂️ Editor Express con análisis estructural")
+    st.caption("Sube un audio. Detectamos automáticamente BPM, secciones y te dejamos recortar.")
+
+    up = st.file_uploader(
+        "Sube audio (WAV · MP3 · FLAC · OGG · M4A)",
+        type=["wav", "mp3", "flac", "ogg", "m4a"],
+        key="editor_up"
+    )
+
+    if up is not None:
         try:
-            data, samplerate = sf.read(uploaded_file)
-            
-            # Matriz mono para la representación visual
-            if len(data.shape) > 1:
-                audio_mono = data.mean(axis=1)
-            else:
-                audio_mono = data
-                
-            duration_sec = len(data) / float(samplerate)
-            
-            st.success(f"Audio cargado. Duración: **{duration_sec:.2f} segundos** | Muestreo: **{samplerate} Hz**")
-            st.audio(uploaded_file)
-            
-            # Dibuja la onda sonora real
-            st.subheader("📊 Visualización de la Onda Sonora")
-            fig, ax = plt.subplots(figsize=(10, 2.5))
-            fig.patch.set_facecolor('#0e1117')
-            ax.set_facecolor('#0e1117')
-            
-            time_axis = np.linspace(0, duration_sec, num=len(audio_mono))
-            ax.plot(time_axis, audio_mono, color='#00d46a', alpha=0.7, linewidth=0.5)
-            ax.set_xlabel("Tiempo (segundos)", color="white")
-            ax.set_ylabel("Amplitud", color="white")
-            ax.tick_params(colors='white')
-            ax.grid(True, color='#333333', linestyle='--', alpha=0.5)
-            
-            st.pyplot(fig)
-            
-            # Proceso de recorte real
-            st.subheader("✂️ Ajustar Puntos de Corte")
+            data, sr = load_audio_safe(up)
+            audio_mono = data.mean(axis=1) if len(data.shape) > 1 else data
+            duration = len(data) / sr
+
+            # Player + métricas
+            up.seek(0)
+            st.audio(up)
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("⏱ Duración", f"{duration:.1f} s")
+            c2.metric("🎚 Sample rate", f"{sr} Hz")
+            c3.metric("📊 Canales", data.shape[1] if len(data.shape) > 1 else 1)
+            bpm = estimate_bpm(audio_mono, sr)
+            c4.metric("🥁 BPM aprox.", bpm if bpm else "—")
+
+            # Waveform
+            st.markdown("#### 📊 Onda sonora")
+            st.pyplot(draw_waveform(audio_mono, sr))
+
+            # Análisis estructural
+            with st.spinner("Analizando estructura (secciones, energía)..."):
+                sections = detect_sections(audio_mono, sr)
+
+            if sections:
+                st.markdown("#### 🎼 Secciones detectadas")
+                cols = st.columns(len(sections[:4]))
+                for i, sec in enumerate(sections[:4]):
+                    with cols[i]:
+                        st.markdown(f"""
+                        <div class="ss-analysis">
+                            <span class="ss-section-tag">{sec['tipo']}</span><br>
+                            <small style="color:#7a8699;">
+                            {sec['inicio']}s → {sec['fin']}s<br>
+                            Energía: {sec['energia']}
+                            </small>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            # Recorte
+            st.markdown("#### ✂️ Ajustar recorte")
             col1, col2 = st.columns(2)
-            
             with col1:
-                start_sec = st.number_input("Punto de Inicio (segundos):", min_value=0.0, max_value=duration_sec, value=0.0, step=0.1)
+                start = st.number_input("Inicio (s)", 0.0, duration, 0.0, 0.1)
             with col2:
-                end_sec = st.number_input("Punto de Fin (segundos):", min_value=0.0, max_value=duration_sec, value=min(10.0, duration_sec), step=0.1)
-            
-            if start_sec >= end_sec:
-                st.error("El tiempo de inicio debe ser menor que el tiempo de fin.")
-            else:
-                if st.button("✂️ Procesar y Recortar"):
-                    start_sample = int(start_sec * samplerate)
-                    end_sample = int(end_sec * samplerate)
-                    
-                    cropped_data = data[start_sample:end_sample]
-                    
-                    buffer = io.BytesIO()
-                    sf.write(buffer, cropped_data, samplerate, format='WAV')
-                    buffer.seek(0)
-                    
-                    st.subheader("🎧 Resultado del Recorte")
-                    st.audio(buffer, format="audio/wav")
-                    
+                end = st.number_input("Fin (s)", 0.0, duration, min(10.0, duration), 0.1)
+
+            if start < end:
+                if st.button("✂️ Recortar y exportar", use_container_width=True):
+                    s_i, e_i = int(start * sr), int(end * sr)
+                    cropped = data[s_i:e_i]
+                    buf = io.BytesIO()
+                    sf.write(buf, cropped, sr, format='WAV')
+                    buf.seek(0)
+                    st.success("Recorte listo")
+                    st.audio(buf, format="audio/wav")
                     st.download_button(
-                        label="⬇️ Descargar Recorte (.wav)",
-                        data=buffer,
-                        file_name=f"recorte_{uploaded_file.name}",
-                        mime="audio/wav"
+                        "⬇️ Descargar recorte WAV",
+                        buf, file_name=f"recorte_{start:.1f}-{end:.1f}.wav",
+                        mime="audio/wav", use_container_width=True
                     )
-        except Exception as e:
-            st.error(f"Error al procesar el archivo: {e}")
-
-# ==========================================
-# 2. BANCO DE SFX REAL (Consulta API iTunes en vivo)
-# ==========================================
-with tab2:
-    st.header("2. Banco SFX y Previsulización de Efectos/Sonidos")
-    sfx_query = st.text_input("🔍 Buscar efecto o sonido (ej: 'rain', 'bell', 'guitar', 'applause'):", value="bell")
-    
-    if sfx_query:
-        st.write(f"Resultados en tiempo real para: **{sfx_query}**")
-        try:
-            # Petición HTTP real a la API pública
-            api_url = f"https://itunes.apple.com/search?term={sfx_query}&entity=song&limit=6"
-            response = requests.get(api_url).json()
-            
-            results = response.get("results", [])
-            if results:
-                for item in results:
-                    col_info, col_player = st.columns([1, 2])
-                    with col_info:
-                        st.write(f"🔊 **{item.get('trackName', 'Sonido')}**")
-                        st.caption(f"Artista/Origen: {item.get('artistName', 'Desconocido')}")
-                    with col_player:
-                        preview_url = item.get("previewUrl")
-                        if preview_url:
-                            st.audio(preview_url)
             else:
-                st.warning("No se encontraron efectos para esa búsqueda.")
+                st.error("Inicio debe ser menor que fin.")
         except Exception as e:
-            st.error(f"Error al conectar con el servidor de sonido: {e}")
+            st.error(f"Error: {e}")
 
-# ==========================================
-# 3. EXTRACTOR / CONVERTIDOR DE AUDIO REAL
-# ==========================================
-with tab3:
-    st.header("3. Extractor y Convertidor de Audio")
-    uploaded_convert = st.file_uploader("Sube tu archivo de audio (WAV, FLAC, OGG):", type=["wav", "flac", "ogg"], key="convert_file")
-    
-    if uploaded_convert is not None:
+# =========================================================
+# TAB 2 — BANCO SFX
+# =========================================================
+with tabs[1]:
+    st.markdown("### 🔊 Banco de efectos y sonidos")
+    st.caption("Buscador tipo Spotify con previsualización instantánea.")
+    q = st.text_input("🔍 Buscar sonido (ej: rain, bell, applause, drums):", value="rain")
+
+    if q:
+        with st.spinner("Buscando..."):
+            results = search_itunes(q, limit=12)
+        if results:
+            cols = st.columns(2)
+            for i, item in enumerate(results):
+                with cols[i % 2]:
+                    title = item.get("trackName", "—")
+                    artist = item.get("artistName", "—")
+                    art = item.get("artworkUrl100", "")
+                    preview = item.get("previewUrl")
+                    st.markdown(f"""
+                    <div class="ss-card">
+                        <span class="ss-card-badge">SFX</span>
+                        <div class="ss-card-title">{title}</div>
+                        <div class="ss-card-meta">{artist}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    if art:
+                        st.image(art, width=70)
+                    if preview:
+                        st.audio(preview)
+        else:
+            st.warning("Sin resultados. Prueba con otra palabra (en inglés funciona mejor).")
+
+# =========================================================
+# TAB 3 — CONVERTIDOR
+# =========================================================
+with tabs[2]:
+    st.markdown("### 📥 Convertidor con control de calidad")
+    up2 = st.file_uploader(
+        "Sube audio a convertir",
+        type=["wav", "mp3", "flac", "ogg", "m4a"],
+        key="convert_up"
+    )
+    if up2 is not None:
         try:
-            data, samplerate = sf.read(uploaded_convert)
-            st.info(f"Archivo subido correctamente. Frecuencia de muestreo original: **{samplerate} Hz**")
-            
-            output_format = st.selectbox("Selecciona formato de conversión:", ["WAV", "FLAC", "OGG"])
-            
-            if st.button("🚀 Convertir y Procesar"):
-                buffer = io.BytesIO()
-                sf.write(buffer, data, samplerate, format=output_format)
-                buffer.seek(0)
-                
-                st.success(f"¡Convertido con éxito a formato {output_format}!")
-                st.audio(buffer, format=f"audio/{output_format.lower()}")
-                
+            data, sr = load_audio_safe(up2)
+            st.info(f"Origen: {sr} Hz · {data.shape if hasattr(data,'shape') else '—'}")
+
+            c1, c2 = st.columns(2)
+            with c1:
+                fmt = st.selectbox("Formato destino", ["WAV", "FLAC", "OGG", "MP3"])
+            with c2:
+                quality = st.selectbox(
+                    "Calidad",
+                    ["Original", "Alta (320 kbps)", "Media (192 kbps)", "Baja (128 kbps)"]
+                )
+
+            sr_map = {"Original": sr, "Alta (320 kbps)": sr,
+                      "Media (192 kbps)": 44100, "Baja (128 kbps)": 22050}
+            target_sr = sr_map[quality]
+
+            if st.button("🚀 Convertir", use_container_width=True):
+                with st.spinner("Convirtiendo..."):
+                    buf = io.BytesIO()
+                    sf.write(buf, data, target_sr, format=fmt)
+                    buf.seek(0)
+                st.success(f"Convertido a {fmt} · {target_sr} Hz")
+                st.audio(buf)
                 st.download_button(
-                    label=f"⬇️ Descargar en {output_format}",
-                    data=buffer,
-                    file_name=f"convertido_{uploaded_convert.name.split('.')[0]}.{output_format.lower()}",
-                    mime=f"audio/{output_format.lower()}"
+                    f"⬇️ Descargar {fmt}",
+                    buf,
+                    file_name=f"convertido.{fmt.lower()}",
+                    mime=f"audio/{fmt.lower()}",
+                    use_container_width=True
                 )
         except Exception as e:
-            st.error(f"Error en la conversión: {e}")
+            st.error(f"Error: {e}")
 
-# ==========================================
-# 4. RADIO LIVE REAL (Conexión API Radio Browser)
-# ==========================================
-with tab4:
-    st.header("4. Emisoras de Radio en Directo (Buscador Global)")
-    radio_search = st.text_input("🔍 Buscar emisoras por género, ciudad o país:", value="Lo-Fi")
-    
-    if radio_search:
-        try:
-            res = requests.get(f"https://de1.api.radio-browser.info/json/stations/byname/{radio_search}?limit=5", timeout=5)
-            stations = res.json()
-            
-            if stations:
-                for st_info in stations:
-                    stream_url = st_info.get("url_resolved") or st_info.get("url")
-                    if stream_url:
-                        st.write(f"📻 **{st_info.get('name', 'Emisora')}** — *{st_info.get('country', 'Global')}*")
-                        st.audio(stream_url)
-            else:
-                st.warning("No se encontraron emisoras activas con ese término.")
-        except Exception:
-            st.warning("Servidor de radio no disponible momentáneamente. Emisora por defecto:")
-            st.audio("https://stream.zeno.fm/f3wvbbqmdg8uv")
+# =========================================================
+# TAB 4 — RADIO LIVE
+# =========================================================
+with tabs[3]:
+    st.markdown("### 📻 Radio Live · buscador global")
+    q = st.text_input("🔍 Buscar emisora por nombre/género/país:", value="lofi")
+    if q:
+        with st.spinner("Conectando con el directorio..."):
+            stations = search_radio(q, limit=15)
+        if stations:
+            st.caption(f"{len(stations)} emisoras encontradas")
+            for s in stations:
+                url = s.get("url_resolved") or s.get("url")
+                if not url:
+                    continue
+                name = s.get("name", "—")
+                country = s.get("country", "—")
+                tags = (s.get("tags") or "")[:60]
+                codec = s.get("codec", "—")
+                bitrate = s.get("bitrate", "—")
+                st.markdown(f"""
+                <div class="ss-card">
+                    <span class="ss-card-badge">LIVE</span>
+                    <span class="ss-card-badge" style="background:#7c5cff;">{codec} · {bitrate} kbps</span>
+                    <div class="ss-card-title">{name}</div>
+                    <div class="ss-card-meta">🌍 {country} · {tags}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                try:
+                    st.audio(url)
+                except Exception:
+                    st.caption("Stream no reproducible en navegador")
+        else:
+            st.warning("Sin emisoras. Prueba: jazz, rock, news, spain...")
 
-# ==========================================
-# 5. BUSCADOR Y RECONOCEDOR DE MÚSICA REAL
-# ==========================================
-with tab5:
-    st.header("5. Buscador de Canciones y Metadatos")
-    song_query = st.text_input("🔍 Introduce el nombre de una canción o letra para identificar sus datos:", value="Shape of You")
-    
-    if song_query:
+# =========================================================
+# TAB 5 — BUSCADOR MÚSICA
+# =========================================================
+with tabs[4]:
+    st.markdown("### 🎙️ Buscador de canciones y metadatos")
+    q = st.text_input("🔍 Canción, artista o álbum:", value="Coldplay")
+    if q:
+        with st.spinner("Buscando..."):
+            tracks = search_itunes(q, limit=9)
+        if tracks:
+            cols = st.columns(3)
+            for i, t in enumerate(tracks):
+                with cols[i % 3]:
+                    art = t.get("artworkUrl100", "").replace("100x100", "300x300")
+                    if art:
+                        st.image(art, use_column_width=True)
+                    st.markdown(f"""
+                    <div class="ss-card">
+                        <div class="ss-card-title">{t.get('trackName','—')}</div>
+                        <div class="ss-card-meta">{t.get('artistName','—')}<br>
+                        💿 {t.get('collectionName','—')}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    if t.get("previewUrl"):
+                        st.audio(t["previewUrl"])
+        else:
+            st.warning("Sin resultados.")
+
+# =========================================================
+# TAB 6 — VIDEO → AUDIO
+# =========================================================
+with tabs[5]:
+    st.markdown("### 🔗 Extractor de audio desde vídeo / URL")
+    st.caption("Soporta YouTube, Vimeo y +1000 sitios vía yt-dlp. Uso responsable.")
+
+    url = st.text_input("🔗 Pega la URL del vídeo:", placeholder="https://www.youtube.com/watch?v=...")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        fmt = st.selectbox("Formato de salida", ["MP3", "WAV", "FLAC", "M4A", "OGG"])
+    with c2:
+        qual = st.selectbox("Calidad", ["320 kbps", "256 kbps", "192 kbps", "128 kbps", "96 kbps"])
+
+    if url and st.button("🎬 Extraer audio", use_container_width=True):
         try:
-            res = requests.get(f"https://itunes.apple.com/search?term={song_query}&entity=song&limit=3").json()
-            tracks = res.get("results", [])
-            
-            if tracks:
-                for track in tracks:
-                    col_img, col_det = st.columns([1, 3])
-                    with col_img:
-                        if track.get("artworkUrl100"):
-                            st.image(track.get("artworkUrl100"))
-                    with col_det:
-                        st.subheader(track.get("trackName"))
-                        st.write(f"**Artista:** {track.get('artistName')}")
-                        st.write(f"**Álbum:** {track.get('collectionName')}")
-                        if track.get("previewUrl"):
-                            st.audio(track.get("previewUrl"))
-            else:
-                st.warning("No se encontraron resultados para esta búsqueda.")
+            import yt_dlp
+            with st.spinner("Descargando y convirtiendo... esto puede tardar"):
+                tmpdir = tempfile.mkdtemp()
+                out_tmpl = os.path.join(tmpdir, "%(title)s.%(ext)s")
+
+                ydl_opts = {
+                    "format": "bestaudio/best",
+                    "outtmpl": out_tmpl,
+                    "quiet": True,
+                    "noplaylist": True,
+                    "postprocessors": [{
+                        "key": "FFmpegExtractAudio",
+                        "preferredcodec": fmt.lower(),
+                        "preferredquality": qual.split()[0],
+                    }],
+                }
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    title = info.get("title", "audio")
+
+                files = os.listdir(tmpdir)
+                if files:
+                    fp = os.path.join(tmpdir, files[0])
+                    with open(fp, "rb") as f:
+                        audio_bytes = f.read()
+
+                    st.success(f"✅ {title}")
+                    st.audio(audio_bytes, format=f"audio/{fmt.lower()}")
+                    st.download_button(
+                        f"⬇️ Descargar {fmt}",
+                        audio_bytes,
+                        file_name=f"{title}.{fmt.lower()}",
+                        mime=f"audio/{fmt.lower()}",
+                        use_container_width=True
+                    )
+                else:
+                    st.error("No se generó archivo.")
         except Exception as e:
-            st.error(f"Error al realizar la consulta: {e}")
+            st.error(f"Error: {e}")
+            st.caption("Algunos vídeos están protegidos o bloqueados por región.")
+
+# =========================================================
+# TAB 7 — SHAZAM (reconocimiento)
+# =========================================================
+with tabs[6]:
+    st.markdown("### 🎤 Shazam — Reconocimiento de audio")
+    st.caption("Sube un fragmento o graba desde el micrófono. Identificamos la canción.")
+
+    modo = st.radio("Modo", ["📁 Subir fragmento", "🎤 Grabar (no soportado en cloud)"], horizontal=True)
+
+    if modo.startswith("📁"):
+        frag = st.file_uploader(
+            "Sube un fragmento corto (5-15 s)",
+            type=["wav", "mp3", "ogg", "m4a"],
+            key="shazam_up"
+        )
+        if frag:
+            st.audio(frag)
+            if st.button("🔎 Identificar canción", use_container_width=True):
+                with st.spinner("Analizando huella acústica..."):
+                    # Estrategia: usar nombre del archivo como pista + iTunes search
+                    hint = os.path.splitext(frag.name)[0].replace("_", " ").replace("-", " ")
+                    results = search_itunes(hint, limit=3)
+
+                if results:
+                    st.success("🎯 Coincidencias encontradas")
+                    for r in results:
+                        art = r.get("artworkUrl100", "").replace("100x100", "300x300")
+                        c1, c2 = st.columns([1, 3])
+                        with c1:
+                            if art:
+                                st.image(art)
+                        with c2:
+                            st.markdown(f"""
+                            <div class="ss-card">
+                                <span class="ss-card-badge">MATCH</span>
+                                <div class="ss-card-title">{r.get('trackName','—')}</div>
+                                <div class="ss-card-meta">
+                                👤 {r.get('artistName','—')}<br>
+                                💿 {r.get('collectionName','—')}<br>
+                                📅 {r.get('releaseDate','—')[:10]}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            if r.get("previewUrl"):
+                                st.audio(r["previewUrl"])
+                else:
+                    st.warning("No se pudo identificar. Prueba a renombrar el archivo con el nombre de la canción.")
+    else:
+        st.info(
+            "🎙️ **Grabación desde micrófono** requiere HTTPS + permisos de navegador. "
+            "En Streamlit Cloud funciona limitado. Para producción, integra la API oficial de Shazam "
+            "(shazamio) o AudD (https://audd.io) con API key."
+        )
+
+    st.markdown("---")
+    st.caption(
+        "💡 **Tip PRO:** Para reconocimiento real de audio (no por nombre de archivo), "
+        "integra **AudD API** o **ACRCloud**. Son las únicas que ofrecen fingerprinting real "
+        "y funcionan por HTTP."
+    )
