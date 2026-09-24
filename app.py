@@ -326,6 +326,39 @@ footer { visibility: hidden; }
 .ss-badge-red { background: linear-gradient(135deg, #ff5c9f, #ff8ab8); color: #fff; box-shadow: 0 0 12px rgba(255, 92, 159, 0.45); }
 .ss-badge-ghost { background: rgba(255, 255, 255, 0.06); color: #b9c6d6; box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.1); }
 
+/* ====== QUÉ PUEDES HACER ====== */
+.ss-feat { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 6px 0 16px; }
+.ss-feat-item {
+    background: linear-gradient(135deg, rgba(20, 27, 38, 0.85), rgba(124, 92, 255, 0.06));
+    border: 1px solid rgba(0, 212, 168, 0.18);
+    border-radius: 14px; padding: 14px 16px;
+    transition: all 0.25s ease;
+}
+.ss-feat-item:hover {
+    border-color: rgba(0, 255, 200, 0.5);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 26px rgba(0, 212, 168, 0.15);
+}
+.ss-feat-ico { font-size: 1.45rem; filter: drop-shadow(0 0 8px rgba(0, 255, 200, 0.5)); }
+.ss-feat-t { font-weight: 700; color: var(--text); margin: 6px 0 3px; font-size: 0.95rem; }
+.ss-feat-d { color: var(--muted); font-size: 0.83rem; line-height: 1.45; }
+.ss-howto {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin: 4px 0 14px; color: #b9c6d6; font-size: 0.85rem;
+}
+.ss-howto b {
+    display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+    background: linear-gradient(135deg, #00d4a8, #00ffc8); color: #05070b; font-size: 0.75rem;
+    box-shadow: 0 0 10px rgba(0, 255, 200, 0.5);
+}
+.ss-howto span.arrow { color: #3d4a5c; }
+.ss-note {
+    padding: 12px 16px; margin: 6px 0 14px; border-radius: 12px;
+    background: rgba(124, 92, 255, 0.08); border: 1px solid rgba(124, 92, 255, 0.3);
+    color: #cfd6e4; font-size: 0.88rem; line-height: 1.5;
+}
+.ss-note b { color: #c5b6ff; }
+
 /* ====== STATS ====== */
 .ss-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin: 14px 0 6px; }
 .ss-stat {
@@ -444,6 +477,68 @@ audio { width: 100%; border-radius: 12px; filter: drop-shadow(0 0 10px rgba(0, 2
 .ss-hist { font-size: 0.8rem; color: #b9c6d6; padding: 7px 10px; margin-bottom: 6px; border-radius: 9px; background: rgba(0, 212, 168, 0.05); border: 1px solid rgba(0, 212, 168, 0.12); }
 .ss-hist small { color: var(--muted); }
 
+/* ====== CUENTA / PLANES ====== */
+.ss-user {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px; border-radius: 16px; margin: 6px 0 10px;
+    background: linear-gradient(135deg, rgba(20, 27, 38, 0.9), rgba(124, 92, 255, 0.08));
+    border: 1px solid rgba(0, 212, 168, 0.22);
+}
+.ss-avatar {
+    width: 46px; height: 46px; flex: 0 0 46px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 1.05rem; color: #05070b;
+    background: linear-gradient(135deg, #00ffc8, #7c5cff);
+    box-shadow: 0 0 18px rgba(0, 255, 200, 0.45);
+}
+.ss-user-name { font-weight: 700; color: var(--text); font-size: 0.95rem; line-height: 1.2; }
+.ss-user-mail { color: var(--muted); font-size: 0.75rem; margin-bottom: 4px; word-break: break-all; }
+.ss-plan-badge {
+    display: inline-block; font-size: 0.62rem; font-weight: 700; letter-spacing: 1.5px;
+    padding: 3px 8px; border-radius: 6px; text-transform: uppercase;
+}
+.ss-plan-lite { background: rgba(255, 255, 255, 0.08); color: #cfd6e4; border: 1px solid rgba(255, 255, 255, 0.15); }
+.ss-plan-pro { background: linear-gradient(135deg, #7c5cff, #ff5c9f); color: #fff; box-shadow: 0 0 12px rgba(124, 92, 255, 0.6); }
+.ss-usage { margin: 4px 0 12px; font-size: 0.78rem; color: #b9c6d6; }
+.ss-usage-bar { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.07); overflow: hidden; margin-top: 5px; }
+.ss-usage-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #00d4a8, #00ffc8); box-shadow: 0 0 10px rgba(0, 255, 200, 0.6); }
+.ss-upsell {
+    position: relative; padding: 14px; border-radius: 16px; margin: 4px 0 10px; overflow: hidden;
+    background: linear-gradient(135deg, rgba(124, 92, 255, 0.22), rgba(255, 92, 159, 0.14));
+    border: 1px solid rgba(165, 140, 255, 0.45);
+    box-shadow: 0 0 28px rgba(124, 92, 255, 0.25);
+}
+.ss-upsell-t { font-weight: 700; color: #fff; font-size: 0.95rem; }
+.ss-upsell-p { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 700; color: #fff;
+    text-shadow: 0 0 16px rgba(255, 92, 159, 0.7); margin: 4px 0 2px; }
+.ss-upsell-p small { font-size: 0.75rem; color: #e3dbff; font-family: 'Space Grotesk', sans-serif; }
+.ss-upsell-d { color: #e3dbff; font-size: 0.78rem; line-height: 1.45; }
+.ss-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 6px 0 14px; }
+.ss-plan {
+    position: relative; padding: 22px 20px; border-radius: 18px;
+    background: linear-gradient(135deg, rgba(20, 27, 38, 0.95), rgba(13, 18, 27, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ss-plan.pro {
+    border: 1px solid rgba(165, 140, 255, 0.6);
+    box-shadow: 0 0 40px rgba(124, 92, 255, 0.3), 0 0 70px rgba(255, 92, 159, 0.12);
+}
+.ss-plan-ribbon {
+    position: absolute; top: 14px; right: 14px;
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 4px 9px; border-radius: 6px; color: #fff;
+    background: linear-gradient(135deg, #7c5cff, #ff5c9f);
+}
+.ss-plan-name { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.ss-plan-price { font-family: 'JetBrains Mono', monospace; font-size: 2rem; font-weight: 700; margin: 8px 0 4px;
+    background: linear-gradient(135deg, #00ffc8, #a58cff); -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent; background-clip: text; }
+.ss-plan-price small { font-size: 0.85rem; -webkit-text-fill-color: #7a8699; font-family: 'Space Grotesk', sans-serif; }
+.ss-plan-desc { color: var(--muted); font-size: 0.85rem; margin-bottom: 12px; }
+.ss-plan ul { list-style: none; padding: 0; margin: 0; }
+.ss-plan li { font-size: 0.86rem; padding: 6px 0; color: #cfd6e4; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+.ss-plan li.no { color: #56606f; text-decoration: line-through; }
+
 /* ====== LOGIN ====== */
 .ss-login-head { text-align: center; margin: 7vh 0 22px; }
 .ss-lock {
@@ -543,6 +638,31 @@ def stats_row(items):
         for v, l in items
     )
     html_block(f'<div class="ss-stats">{cells}</div>')
+
+
+def feature_grid(items, title="✨ Qué puedes hacer aquí"):
+    """Tarjetas explicativas: (icono, título, descripción)."""
+    sub(title)
+    cells = "".join(
+        f'<div class="ss-feat-item"><div class="ss-feat-ico">{i}</div>'
+        f'<div class="ss-feat-t">{t}</div><div class="ss-feat-d">{d}</div></div>'
+        for i, t, d in items
+    )
+    html_block(f'<div class="ss-feat">{cells}</div>')
+
+
+def howto(*steps):
+    """Pasos numerados en una línea: 1 → 2 → 3."""
+    parts = []
+    for n, step in enumerate(steps, 1):
+        if n > 1:
+            parts.append('<span class="arrow">→</span>')
+        parts.append(f"<span><b>{n}</b> {step}</span>")
+    html_block(f'<div class="ss-howto">{"".join(parts)}</div>')
+
+
+def note(text):
+    html_block(f'<div class="ss-note">{text}</div>')
 
 
 def empty_state(icon, title, text):
@@ -1131,6 +1251,14 @@ def render_editor():
         st.pyplot(fig)
         plt.close(fig)
         st.caption("💡 Formatos: WAV, MP3, FLAC, OGG, M4A, AAC, OPUS… y también vídeos (MP4, MOV, MKV). Máx. 200 MB.")
+        feature_grid([
+            ("🥁", "BPM y tonalidad", "Detecta el tempo y la tonalidad de la canción automáticamente."),
+            ("📊", "Volumen y saturación", "Mide el pico y el volumen medio, y avisa si el audio satura."),
+            ("〰️", "Onda y espectrograma", "Mira la forma del sonido o sus frecuencias en colores."),
+            ("🎯", "Estribillo en 1 clic", "Localiza las partes con más energía y las selecciona al pulsar."),
+            ("✂️", "Recorte exacto", "Elige inicio y final con precisión de décimas de segundo."),
+            ("💾", "Exporta como quieras", "MP3, WAV, FLAC, OGG o M4A, con fundidos y normalización."),
+        ])
         return
     if not FFMPEG_OK:
         st.error("El editor necesita ffmpeg instalado.")
@@ -1355,7 +1483,7 @@ def render_batch():
     sr_opt = c3.selectbox("Sample rate", ["Original", 48000, 44100, 32000, 22050], key="b_sr")
     ch_opt = c4.selectbox("Canales", ["Original", "Estéreo", "Mono"], key="b_ch")
     if not ups:
-        empty_state("📦", "Conversión por lotes", "Sube todos los archivos a la vez y descárgalos en un ZIP.")
+        feature_grid(FX_MODE_FEATURES["📦 Convertir muchos (lote)"])
         return
     total = sum(u.size for u in ups) / 1048576
     st.caption(f"{len(ups)} archivos · {total:.1f} MB en total")
@@ -1384,21 +1512,52 @@ def render_batch():
     show_result("res_batch")
 
 
+FX_MODE_TEXT = {
+    "🎚️ Aplicar efectos": "Transforma el sonido: velocidad, tono, ecualizador, limpieza de ruido y silencios, fundidos…",
+    "🔄 Convertir formato": "Cambia el formato y la calidad de un archivo sin tocar cómo suena.",
+    "📦 Convertir muchos (lote)": "Sube muchos archivos a la vez y descárgalos todos convertidos en un ZIP.",
+}
+FX_MODE_FEATURES = {
+    "🎚️ Aplicar efectos": [
+        ("🎨", "7 presets listos", "Podcast, Nightcore, Slowed, Bass boost, Radio antigua, Limpieza rápida…"),
+        ("⏩", "Velocidad y tono", "Acelera o frena sin voz de ardilla. Sube o baja el tono sin cambiar la duración."),
+        ("🎛️", "Ecualizador", "Ajusta graves, medios y agudos por separado."),
+        ("🧹", "Quita ruido", "Elimina soplido, zumbido o ruido de ventilador de fondo."),
+        ("🔇", "Quita silencios", "Solo al principio y al final, o también las pausas largas del medio."),
+        ("🔊", "Volumen y salida", "Fundidos, ganancia, normalizar, pasar a mono y 5 formatos."),
+    ],
+    "🔄 Convertir formato": [
+        ("🔄", "5 formatos", "MP3, WAV, FLAC, OGG y M4A."),
+        ("🎚️", "Calidad a elegir", "De 96 a 320 kbps para ajustar calidad y peso."),
+        ("📉", "Menos peso", "Te muestra cuánto pesa antes y después de convertir."),
+        ("🎧", "Mono o estéreo", "Cambia los canales y el sample rate si lo necesitas."),
+        ("🎬", "También vídeos", "Sube un vídeo y te lo convierte directamente a audio."),
+    ],
+    "📦 Convertir muchos (lote)": [
+        ("📦", "Muchos a la vez", "Sube todos los archivos juntos, sin ir uno a uno."),
+        ("⚙️", "Mismas opciones", "Formato, calidad, sample rate y canales para todos."),
+        ("🗜️", "Descarga en ZIP", "Te llevas todo en un solo archivo comprimido."),
+    ],
+}
+
+
 def render_fx_tab():
     section_header("🎛️", "Estudio FX",
                    "Efectos profesionales, conversión de formato y procesamiento por lotes.")
     if not FFMPEG_OK:
         st.error("Esta sección necesita ffmpeg instalado.")
         return
-    mode = st.radio("Modo", ["🎚️ Efectos", "🔄 Convertir", "📦 Lote"], horizontal=True,
-                    key="fx_mode", label_visibility="collapsed")
+    mode = st.radio("¿Qué quieres hacer?",
+                    ["🎚️ Aplicar efectos", "🔄 Convertir formato", "📦 Convertir muchos (lote)"],
+                    horizontal=True, key="fx_mode")
+    st.caption(FX_MODE_TEXT[mode])
     if mode.startswith("📦"):
         render_batch()
         return
+    howto("Sube un audio o vídeo", "Ajusta las opciones", "Pulsa el botón", "Escucha y descarga")
     up = st.file_uploader("Sube audio o vídeo", type=AUDIO_TYPES + VIDEO_TYPES, key="fx_up")
     if up is None:
-        empty_state("🎛️", "Sube un archivo para empezar",
-                    "Presets, ecualizador, tono, velocidad, reducción de ruido y más.")
+        feature_grid(FX_MODE_FEATURES[mode])
         return
     fid = fid_of(up)
     if st.session_state.get("fx_fid") != fid:
@@ -1430,23 +1589,36 @@ with tabs[1]:
 # =========================================================
 def render_merge():
     section_header("🧩", "Unir audios",
-                   "Encadena varias pistas en un solo archivo, con fundido cruzado entre ellas.")
+                   "Junta varias pistas en un solo archivo, una detrás de otra.")
+    note("Las pistas se colocan <b>una detrás de otra</b> (no suenan a la vez). "
+         "Con el fundido cruzado en <b>0 s</b> van seguidas sin pausa; con más de 0 s, "
+         "el final de una se funde con el principio de la siguiente, <b>como hace un DJ</b>.")
     if not FFMPEG_OK:
         st.error("Esta sección necesita ffmpeg instalado.")
         return
     ups = st.file_uploader("Sube 2 o más archivos", type=AUDIO_TYPES + VIDEO_TYPES,
                            accept_multiple_files=True, key="mg_up")
     if not ups or len(ups) < 2:
-        empty_state("🧩", "Sube al menos 2 archivos", "Ideal para mixtapes, podcasts por partes o recopilatorios.")
+        howto("Sube 2 o más archivos", "Elige el orden", "Ajusta el fundido", "Descarga el resultado")
+        feature_grid([
+            ("🔗", "Una detrás de otra", "Crea un solo archivo con todas las pistas seguidas."),
+            ("🎧", "Fundido cruzado", "Transiciones suaves entre pistas, estilo DJ, de 0 a 10 s."),
+            ("⏭️", "Sin pausas", "Con fundido en 0 s, las pistas empalman justo al terminar la anterior."),
+            ("🔀", "Orden a tu gusto", "Decide qué pista va primero y cuál después."),
+            ("🔊", "Volumen igualado", "Normaliza el resultado para que todo suene fuerte y sin saturar."),
+            ("💡", "Ideas", "Mixtapes, recopilatorios, podcasts grabados por partes, sesiones continuas."),
+        ])
         return
     labels = [f"{i + 1}. {u.name}" for i, u in enumerate(ups)]
     order = st.multiselect("Orden de reproducción", labels, default=labels,
                            help="Quita un archivo y vuelve a añadirlo para moverlo al final.")
     c1, c2, c3 = st.columns(3)
-    cf = c1.slider("Fundido cruzado (s)", 0.0, 10.0, 2.0, 0.5, key="mg_cf")
+    cf = c1.slider("Fundido cruzado (s)", 0.0, 10.0, 2.0, 0.5, key="mg_cf",
+                   help="0 = seguidas sin pausa. Más de 0 = el final de una se funde con el inicio de la siguiente.")
     fmt = c2.selectbox("Formato", FORMATS, key="mg_fmt")
     kbps = c3.selectbox("Bitrate (kbps)", BITRATES, key="mg_kbps", disabled=fmt not in LOSSY)
     norm = st.checkbox("🔊 Normalizar el resultado", value=True, key="mg_norm")
+    st.caption("⏭️ Seguidas sin pausa" if cf == 0 else f"🎧 Cada pista se funde con la siguiente durante {cf:g} s")
 
     if len(order) < 2:
         st.warning("Deja al menos 2 archivos en el orden.")
@@ -1480,7 +1652,12 @@ def _video_upload_mode(fmt, kbps, qual):
     st.caption("Sube un vídeo y te devolvemos solo la pista de audio.")
     vid = st.file_uploader("Vídeo", type=VIDEO_TYPES, key="va_upload")
     if not vid:
-        empty_state("🎬", "Sube un vídeo", "MP4, MOV, MKV, WEBM, AVI · puedes extraer solo un fragmento.")
+        feature_grid([
+            ("🎬", "Audio de cualquier vídeo", "MP4, MOV, MKV, WEBM y AVI: te quedas solo con el sonido."),
+            ("✂️", "Solo un fragmento", "Extrae únicamente el trozo que te interesa."),
+            ("💾", "5 formatos", "MP3, WAV, FLAC, OGG o M4A, con la calidad que elijas."),
+            ("📱", "Vídeos del móvil", "Perfecto para sacar el audio de grabaciones, clases o conciertos."),
+        ])
         return
     path = save_upload(vid)
     info = probe_audio(path)
@@ -1617,7 +1794,12 @@ def render_recognize():
                 "Para reconocer el sonido de verdad, añade la clave `AUDD_API_TOKEN` en los secretos.")
     frag = st.file_uploader("Fragmento de audio o vídeo", type=AUDIO_TYPES + VIDEO_TYPES, key="shazam_up")
     if not frag:
-        empty_state("🎤", "Sube un fragmento", "Con 10-15 segundos suele bastar.")
+        feature_grid([
+            ("🎤", "¿Qué canción es?", "Sube un trozo de audio o vídeo y te dice título y artista."),
+            ("⏱️", "Basta con 10-15 s", "No hace falta la canción entera."),
+            ("💿", "Datos completos", "Álbum, fecha de lanzamiento, discográfica y portada."),
+            ("🔗", "Enlaces directos", "Escúchala en Spotify o Apple Music con un clic."),
+        ])
         return
     st.audio(frag)
 
@@ -1773,6 +1955,9 @@ COUNTRIES = {"🌍 Todos": "", "🇪🇸 España": "ES", "🇲🇽 México": "MX
              "🇫🇷 Francia": "FR", "🇩🇪 Alemania": "DE", "🇮🇹 Italia": "IT", "🇧🇷 Brasil": "BR"}
 
 
+RADIO_PAGE = 25
+
+
 def _toggle_fav(station):
     favs = st.session_state.setdefault("radio_favs", {})
     uid = station.get("stationuuid")
@@ -1819,20 +2004,37 @@ def render_radio():
                       placeholder="jazz · rock · news · lofi · flamenco...")
     by = c2.selectbox("Buscar por", ["Temática", "Nombre"], key="rd_by")
     country = c3.selectbox("País", list(COUNTRIES.keys()), key="rd_country")
-    limit = c4.selectbox("Máx.", [10, 20, 40], index=1, key="rd_lim")
+    limit = c4.selectbox("Máx.", [10, 20, 40, 50, "Todas"], index=1, key="rd_lim")
     if not q and not COUNTRIES[country]:
         st.info("Escribe algo o elige un país.")
         return
     with st.spinner("Conectando con el directorio global..."):
-        stations = search_radio(q.strip(), by == "Temática", COUNTRIES[country], limit)
+        stations = search_radio(q.strip(), by == "Temática", COUNTRIES[country],
+                                100000 if limit == "Todas" else limit)
+    total = len(stations)
+    shown = stations
+    extra = ""
+    if limit == "Todas" and total > RADIO_PAGE:
+        pages = (total + RADIO_PAGE - 1) // RADIO_PAGE
+        sig = (q.strip(), by, country)
+        if st.session_state.get("rd_sig") != sig:
+            st.session_state["rd_sig"] = sig
+            st.session_state["rd_page"] = 1
+        st.session_state["rd_page"] = min(max(1, st.session_state.get("rd_page", 1)), pages)
+        p1, p2 = st.columns([1, 3])
+        page = p1.number_input(f"Página (de {pages})", min_value=1, max_value=pages, step=1, key="rd_page")
+        a = (page - 1) * RADIO_PAGE
+        shown = stations[a:a + RADIO_PAGE]
+        extra = f" · mostrando {a + 1}–{a + len(shown)}"
+        p2.caption(f"Se muestran {RADIO_PAGE} emisoras por página para que la web vaya fluida.")
     html_block(
-        f'<div class="ss-stat-box"><div class="ss-stat-v">{len(stations)}</div>'
-        f'<div class="ss-stat-l">emisoras encontradas</div></div>'
+        f'<div class="ss-stat-box"><div class="ss-stat-v">{total}</div>'
+        f'<div class="ss-stat-l">emisoras encontradas{extra}</div></div>'
     )
     if not stations:
         st.warning("Sin emisoras. Prueba: jazz, rock, news, pop, lofi, classical...")
         return
-    for s in stations:
+    for s in shown:
         _station_card(s, "fav")
 
 
@@ -1843,6 +2045,68 @@ with tabs[7]:
 # =========================================================
 # SIDEBAR
 # =========================================================
+# ---------------------------------------------------------
+# CUENTA Y SUSCRIPCIÓN (maqueta visual, sin pagos reales todavía)
+# ---------------------------------------------------------
+PRO_PRICE = "9,99 €"
+LITE_DAILY = 10
+PLAN_FEATURES = [
+    # (función, lite, pro)
+    ("Editor, análisis y recorte", True, True),
+    ("Conversión de formato individual", True, True),
+    ("Radio, música y banco SFX", True, True),
+    ("Vídeo → Audio", True, True),
+    ("Archivos de hasta 200 MB", False, True),
+    ("Estudio FX completo y presets", False, True),
+    ("Conversión por lotes (ZIP)", False, True),
+    ("Unir audios con crossfade", False, True),
+    ("Reconocimiento de canciones", False, True),
+    ("Sin límite diario de procesos", False, True),
+    ("Soporte prioritario", False, True),
+]
+
+
+def _initials(name):
+    parts = [p for p in re.split(r"\s+", name.strip()) if p]
+    return ("".join(p[0] for p in parts[:2]) or "U").upper()
+
+
+def plans_html():
+    def col(idx):
+        return "".join(
+            f'<li class="{"" if row[idx] else "no"}">{"✓" if row[idx] else "✕"}&nbsp; {esc(row[0])}</li>'
+            for row in PLAN_FEATURES
+        )
+    return (
+        '<div class="ss-plans">'
+        '<div class="ss-plan"><div class="ss-plan-name">Lite</div>'
+        '<div class="ss-plan-price">0 € <small>/ siempre</small></div>'
+        f'<div class="ss-plan-desc">Lo esencial para editar y convertir · {LITE_DAILY} procesos al día.</div>'
+        f'<ul>{col(1)}</ul></div>'
+        '<div class="ss-plan pro"><div class="ss-plan-ribbon">Recomendado</div>'
+        '<div class="ss-plan-name">PRO</div>'
+        f'<div class="ss-plan-price">{PRO_PRICE} <small>/ mes</small></div>'
+        '<div class="ss-plan-desc">El estudio completo, sin límites. Cancela cuando quieras.</div>'
+        f'<ul>{col(2)}</ul></div>'
+        '</div>'
+    )
+
+
+def _plans_body():
+    html_block(plans_html())
+    _stretch(st.button, f"💳 Suscribirme a PRO · {PRO_PRICE}/mes", key="buy_pro", disabled=True)
+    st.caption("🚧 Los pagos se activarán próximamente.")
+
+
+if hasattr(st, "dialog"):
+    @st.dialog("💎 Planes SoundSnip", width="large")
+    def open_plans():
+        _plans_body()
+else:
+    def open_plans():
+        st.session_state["show_plans"] = True
+
+
 def _status(label, state):
     cls = {"on": "ss-on", "off": "ss-off", "mid": "ss-mid"}[state]
     return f'<div class="ss-status"><span>{label}</span><span class="ss-dot {cls}"></span></div>'
@@ -1854,6 +2118,36 @@ with st.sidebar:
         '<div class="ss-side-name">SOUNDSNIP PRO</div>'
         f'<div class="ss-side-ver">{APP_VERSION}</div></div>'
     )
+    # ---------- MI CUENTA ----------
+    st.session_state.setdefault("user_name", "Usuario")
+    st.session_state.setdefault("user_email", "usuario@email.com")
+    st.session_state.setdefault("user_plan", "LITE")
+    plan = st.session_state["user_plan"]
+    html_block('<div class="ss-sub">Mi cuenta</div>')
+    html_block(
+        f'<div class="ss-user"><div class="ss-avatar">{esc(_initials(st.session_state["user_name"]))}</div>'
+        f'<div><div class="ss-user-name">{esc(st.session_state["user_name"])}</div>'
+        f'<div class="ss-user-mail">{esc(st.session_state["user_email"])}</div>'
+        f'<span class="ss-plan-badge ss-plan-{plan.lower()}">Plan {esc(plan)}</span></div></div>'
+    )
+    if plan == "LITE":
+        used = min(len(st.session_state.get("history", [])), LITE_DAILY)
+        html_block(
+            f'<div class="ss-usage">Procesos de hoy: <b>{used} / {LITE_DAILY}</b>'
+            f'<div class="ss-usage-bar"><div class="ss-usage-fill" style="width:{used / LITE_DAILY * 100:.0f}%"></div></div></div>'
+        )
+        html_block(
+            '<div class="ss-upsell"><div class="ss-upsell-t">💎 Pásate a PRO</div>'
+            f'<div class="ss-upsell-p">{PRO_PRICE} <small>/ mes</small></div>'
+            '<div class="ss-upsell-d">Estudio FX completo, lotes, unir audios, reconocimiento y sin límites.</div></div>'
+        )
+        if _stretch(st.button, "✨ Ver planes", key="see_plans"):
+            open_plans()
+    with st.expander("👤 Editar perfil"):
+        st.text_input("Nombre", key="user_name")
+        st.text_input("Email", key="user_email")
+        st.caption("De momento se guarda solo durante esta sesión.")
+
     html_block('<div class="ss-sub">Estado</div>')
     html_block(
         _status("Motor de audio (ffmpeg)", "on" if FFMPEG_OK else "off")
@@ -1874,6 +2168,10 @@ with st.sidebar:
         for k in ("auth_ok", "fails"):
             st.session_state.pop(k, None)
         st.rerun()
+
+if st.session_state.pop("show_plans", False):
+    with st.expander("💎 Planes SoundSnip", expanded=True):
+        _plans_body()
 
 html_block(
     f'<div class="ss-footer">✂️ <b>SoundSnip Studio PRO</b> · {APP_VERSION} · '
