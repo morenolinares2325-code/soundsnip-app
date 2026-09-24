@@ -22,7 +22,7 @@ st.set_page_config(
 st.sidebar.caption(f"Streamlit v{st.__version__}")
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🎛️ Info")
-st.sidebar.caption("SoundSnip Studio PRO v2")
+st.sidebar.caption("SoundSnip Studio PRO v3")
 st.sidebar.caption("Todos los módulos activos")
 
 # ---------------------------------------------------------
@@ -220,8 +220,8 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 # ---------------------------------------------------------
 st.markdown("""
 <div class="ss-hero">
-    <h1>✂️ SoundSnip Studio <span style="color:#7c5cff;font-size:1rem;">PRO v2</span></h1>
-    <p>Edición · Análisis · Separación · Reconocimiento · Conversión · Radio</p>
+    <h1>✂️ SoundSnip Studio <span style="color:#7c5cff;font-size:1rem;">PRO v3</span></h1>
+    <p>Edición · Análisis · Procesamiento · Reconocimiento · Conversión · Radio</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -404,6 +404,72 @@ def get_cookie_file():
     return str(cookie_path)
 
 
+# --- Procesadores de audio (reemplazan a Spleeter) ---
+def apply_fade(audio, sr, fade_in_sec=0, fade_out_sec=0):
+    out = audio.copy()
+    if fade_in_sec > 0:
+        n = int(fade_in_sec * sr)
+        if n < len(out):
+            out[:n] = out[:n] * np.linspace(0, 1, n)[:, None] if out.ndim > 1 else out[:n] * np.linspace(0, 1, n)
+    if fade_out_sec > 0:
+        n = int(fade_out_sec * sr)
+        if n < len(out):
+            ramp = np.linspace(1, 0, n)
+            if out.ndim > 1:
+                out[-n:] = out[-n:] * ramp[:, None]
+            else:
+                out[-n:] = out[-n:] * ramp
+    return out
+
+
+def apply_normalize(audio):
+    peak = np.max(np.abs(audio))
+    if peak > 0:
+        return audio / peak * 0.95
+    return audio
+
+
+def apply_speed(audio, sr, factor):
+    if factor == 1.0:
+        return audio, sr
+    new_sr = int(sr * factor)
+    indices = np.linspace(0, len(audio) - 1, int(len(audio) / factor))
+    if audio.ndim > 1:
+        resampled = np.array([np.interp(indices, np.arange(len(audio)), audio[:, c])
+                              for c in range(audio.shape[1])]).T
+    else:
+        resampled = np.interp(indices, np.arange(len(audio)), audio)
+    return resampled, new_sr
+
+
+def apply_amplify(audio, gain_db):
+    factor = 10 ** (gain_db / 20)
+    out = audio * factor
+    peak = np.max(np.abs(out))
+    if peak > 1.0:
+        out = out / peak
+    return out
+
+
+def save_audio_to_bytes(data, sr, fmt="WAV"):
+    buf = io.BytesIO()
+    if fmt in ("WAV", "FLAC", "OGG"):
+        sf.write(buf, data, sr, format=fmt)
+    else:  # MP3
+        from pydub import AudioSegment
+        samples_int = (data * 32767).astype(np.int16)
+        ch = data.shape[1] if data.ndim > 1 else 1
+        seg = AudioSegment(
+            samples_int.tobytes(),
+            frame_rate=sr,
+            sample_width=2,
+            channels=ch
+        )
+        seg.export(buf, format="mp3", bitrate="320k")
+    buf.seek(0)
+    return buf
+
+
 # ---------------------------------------------------------
 # TABS
 # ---------------------------------------------------------
@@ -418,7 +484,7 @@ tabs = st.tabs([
 ])
 
 # =========================================================
-# TAB 1 — EDITOR & ANÁLISIS (con visor desde el inicio)
+# TAB 1 — EDITOR & ANÁLISIS
 # =========================================================
 with tabs[0]:
     st.markdown("### ✂️ Editor Express con análisis estructural")
@@ -497,9 +563,7 @@ with tabs[0]:
                 if st.button("✂️ Recortar y exportar", use_container_width=True):
                     s_i, e_i = int(start * sr), int(end * sr)
                     cropped = data[s_i:e_i]
-                    buf = io.BytesIO()
-                    sf.write(buf, cropped, sr, format='WAV')
-                    buf.seek(0)
+                    buf = save_audio_to_bytes(cropped, sr, "WAV")
                     st.success("Recorte listo")
                     st.audio(buf, format="audio/wav")
                     st.download_button(
@@ -513,7 +577,7 @@ with tabs[0]:
             st.error(f"Error: {e}")
 
 # =========================================================
-# TAB 2 — BANCO SFX (solo efectos, no música)
+# TAB 2 — BANCO SFX
 # =========================================================
 with tabs[1]:
     st.markdown("### 🔊 Banco de efectos y sonidos")
@@ -562,11 +626,11 @@ with tabs[1]:
             st.warning("Sin resultados. Prueba otra palabra (en inglés funciona mejor).")
 
 # =========================================================
-# TAB 3 — CONVERTIDOR (con separación de stems)
+# TAB 3 — CONVERTIDOR + PROCESADOR
 # =========================================================
 with tabs[2]:
     st.markdown("### 📥 Convertidor y procesador de audio")
-    st.caption("Convierte formatos **o separa voces/instrumentos** con IA (Spleeter).")
+    st.caption("Convierte formatos o aplica efectos: fade, normalizar, velocidad, ganancia.")
 
     up2 = st.file_uploader(
         "Sube audio a procesar",
@@ -582,10 +646,11 @@ with tabs[2]:
 
             modo = st.radio(
                 "🎛️ Modo de procesamiento",
-                ["🔄 Convertir formato", "🎤 Separar stems (IA)"],
+                ["🔄 Convertir formato", "🎚️ Aplicar efectos"],
                 horizontal=True
             )
 
+            # =========== MODO CONVERTIR ===========
             if modo.startswith("🔄"):
                 c1, c2 = st.columns(2)
                 with c1:
@@ -602,22 +667,7 @@ with tabs[2]:
 
                 if st.button("🚀 Convertir", use_container_width=True):
                     with st.spinner("Convirtiendo..."):
-                        buf = io.BytesIO()
-                        if fmt in ("WAV", "FLAC", "OGG"):
-                            sf.write(buf, data, target_sr, format=fmt)
-                        else:
-                            from pydub import AudioSegment
-                            samples_int = (data * 32767).astype(np.int16)
-                            seg = AudioSegment(
-                                samples_int.tobytes(),
-                                frame_rate=target_sr,
-                                sample_width=2,
-                                channels=data.shape[1] if len(data.shape) > 1 else 1
-                            )
-                            kbps = {"Original": "320", "Alta (320 kbps)": "320",
-                                    "Media (192 kbps)": "192", "Baja (128 kbps)": "128"}[quality]
-                            seg.export(buf, format="mp3", bitrate=f"{kbps}k")
-                        buf.seek(0)
+                        buf = save_audio_to_bytes(data, target_sr, fmt)
                     st.success(f"Convertido a {fmt} · {target_sr} Hz")
                     st.audio(buf)
                     st.download_button(
@@ -628,75 +678,63 @@ with tabs[2]:
                         use_container_width=True
                     )
 
+            # =========== MODO EFECTOS ===========
             else:
-                st.warning(
-                    "⚠️ **Spleeter** descarga ~1 GB en la primera ejecución. "
-                    "El procesamiento tarda 10-60 s según duración. "
-                    "En Streamlit Cloud puede fallar por límite de memoria."
+                st.markdown("#### 🎚️ Procesadores disponibles")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    fade_in = st.slider("Fade In (s)", 0.0, 5.0, 0.5, 0.1)
+                    speed = st.slider("Velocidad (x)", 0.5, 2.0, 1.0, 0.05)
+                with col2:
+                    fade_out = st.slider("Fade Out (s)", 0.0, 5.0, 0.5, 0.1)
+                    gain_db = st.slider("Ganancia (dB)", -20, 20, 0, 1)
+
+                normalize = st.checkbox("🔊 Normalizar (peak -0.5 dB)", value=True)
+
+                if st.button("🎛️ Procesar audio", use_container_width=True):
+                    with st.spinner("Procesando..."):
+                        processed = data.copy()
+
+                        # Velocidad
+                        if speed != 1.0:
+                            processed, sr = apply_speed(processed, sr, speed)
+
+                        # Ganancia
+                        if gain_db != 0:
+                            processed = apply_amplify(processed, gain_db)
+
+                        # Normalizar
+                        if normalize:
+                            processed = apply_normalize(processed)
+
+                        # Fades
+                        if fade_in > 0 or fade_out > 0:
+                            processed = apply_fade(processed, sr, fade_in, fade_out)
+
+                        buf = save_audio_to_bytes(processed, sr, "WAV")
+
+                    st.success("✅ Procesado completado")
+                    st.audio(buf, format="audio/wav")
+                    st.download_button(
+                        "⬇️ Descargar procesado",
+                        buf,
+                        file_name=f"procesado_{up2.name.split('.')[0]}.wav",
+                        mime="audio/wav",
+                        use_container_width=True
+                    )
+
+                st.markdown("---")
+                st.caption(
+                    "💡 **Nota**: la separación de voces/instrumentos con IA "
+                    "(Spleeter/Demucs) no está disponible porque consume demasiada "
+                    "memoria y no es compatible con Streamlit Cloud gratis."
                 )
-
-                separacion = st.selectbox(
-                    "Modo de separación",
-                    [
-                        "2 stems — Voces + Acompañamiento",
-                        "4 stems — Voces + Batería + Bajo + Otros",
-                        "5 stems — Voces + Batería + Bajo + Piano + Otros"
-                    ]
-                )
-                n_stems = separacion.split()[0]
-
-                st.caption(f"🔧 Modelo: `spleeter:{n_stems}`")
-
-                if st.button("🎤 Separar pista", use_container_width=True):
-                    try:
-                        from spleeter.separator import Separator
-                        with st.spinner(f"Separando con {n_stems}... esto puede tardar"):
-                            tmpdir = tempfile.mkdtemp()
-                            input_path = os.path.join(tmpdir, "input.wav")
-                            sf.write(input_path, data, sr)
-
-                            output_dir = os.path.join(tmpdir, "out")
-                            os.makedirs(output_dir, exist_ok=True)
-
-                            separator = Separator(f"spleeter:{n_stems}")
-                            separator.separate_to_file(input_path, output_dir)
-
-                            out_folder = os.path.join(output_dir, "input")
-                            if not os.path.exists(out_folder):
-                                st.error("No se generó la separación.")
-                            else:
-                                st.success("✅ Separación completada")
-                                stems = sorted(os.listdir(out_folder))
-                                st.markdown("#### 🎚️ Stems generados")
-                                for stem_file in stems:
-                                    stem_path = os.path.join(out_folder, stem_file)
-                                    if stem_path.endswith(".wav"):
-                                        stem_name = stem_file.replace(".wav", "").capitalize()
-                                        st.markdown(f"**🎵 {stem_name}**")
-                                        with open(stem_path, "rb") as f:
-                                            stem_bytes = f.read()
-                                        st.audio(stem_bytes, format="audio/wav")
-                                        st.download_button(
-                                            f"⬇️ Descargar {stem_name}",
-                                            stem_bytes,
-                                            file_name=stem_file,
-                                            mime="audio/wav",
-                                            use_container_width=True,
-                                            key=f"dl_{stem_file}"
-                                        )
-                    except ImportError:
-                        st.error(
-                            "❌ **Spleeter no está instalado**. "
-                            "Añade `spleeter` a `requirements.txt` y redespliega. "
-                            "⚠️ Spleeter NO funciona en Python 3.12+."
-                        )
-                    except Exception as e:
-                        st.error(f"Error en separación: {e}")
         except Exception as e:
             st.error(f"Error: {e}")
 
 # =========================================================
-# TAB 4 — RADIO LIVE (con contador + búsqueda por tags)
+# TAB 4 — RADIO LIVE
 # =========================================================
 with tabs[3]:
     st.markdown("### 📻 Radio Live · buscador global")
@@ -771,7 +809,7 @@ with tabs[3]:
         )
 
 # =========================================================
-# TAB 5 — BUSCADOR MÚSICA (con aviso de 30s)
+# TAB 5 — BUSCADOR MÚSICA
 # =========================================================
 with tabs[4]:
     st.markdown("### 🎙️ Buscador de canciones y metadatos")
@@ -810,7 +848,7 @@ with tabs[4]:
             st.warning("Sin resultados.")
 
 # =========================================================
-# TAB 6 — VIDEO → AUDIO (con cookies)
+# TAB 6 — VIDEO → AUDIO
 # =========================================================
 with tabs[5]:
     st.markdown("### 🔗 Extractor de audio desde vídeo / URL")
@@ -902,7 +940,7 @@ with tabs[5]:
         st.markdown(guia_cookies)
 
 # =========================================================
-# TAB 7 — SHAZAM (solo subir fragmento)
+# TAB 7 — SHAZAM
 # =========================================================
 with tabs[6]:
     st.markdown("### 🎤 Shazam — Reconocimiento de audio")
