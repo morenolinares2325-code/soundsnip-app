@@ -47,7 +47,11 @@ def setup_deno():
     return deno_path
 
 
-DENO_PATH = setup_deno()
+import platform
+if platform.system() == "Linux":
+    DENO_PATH = setup_deno()
+else:
+    DENO_PATH = shutil.which("deno")
 FFMPEG_OK = shutil.which("ffmpeg") is not None
 
 # Mapas de formato para Video → Audio (OGG en yt-dlp se llama "vorbis")
