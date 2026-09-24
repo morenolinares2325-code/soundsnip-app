@@ -229,11 +229,11 @@ st.markdown("""
 # HELPERS
 # ---------------------------------------------------------
 def safe_image(source, **kwargs):
-    """st.image() compatible con Streamlit <1.36 y >=1.36."""
     try:
         st.image(source, use_container_width=True, **kwargs)
     except TypeError:
         st.image(source, use_column_width=True, **kwargs)
+
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def search_itunes(query: str, limit: int = 12):
@@ -247,11 +247,10 @@ def search_itunes(query: str, limit: int = 12):
     except Exception:
         return []
 
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def search_itunes_sfx(query: str, limit: int = 12):
-    """Busca efectos de sonido filtrando canciones."""
     try:
-        # Forzar búsqueda de efectos, no canciones
         r = requests.get(
             "https://itunes.apple.com/search",
             params={
@@ -263,7 +262,6 @@ def search_itunes_sfx(query: str, limit: int = 12):
             timeout=8
         )
         results = r.json().get("results", [])
-        # Filtrar: excluir géneros claramente musicales
         exclusion = {"Pop", "Rock", "Hip-Hop/Rap", "Latin", "Country",
                      "R&B/Soul", "Reggae", "Jazz", "Dance", "Electronic"}
         filtered = [
@@ -273,6 +271,7 @@ def search_itunes_sfx(query: str, limit: int = 12):
         return filtered[:limit]
     except Exception:
         return []
+
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def search_radio(query: str, limit: int = 20):
@@ -286,6 +285,7 @@ def search_radio(query: str, limit: int = 20):
     except Exception:
         return []
 
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def search_radio_by_tag(tag: str, limit: int = 20):
     try:
@@ -298,8 +298,8 @@ def search_radio_by_tag(tag: str, limit: int = 20):
     except Exception:
         return []
 
+
 def load_audio_safe(uploaded):
-    """Intenta leer cualquier formato. Fallback a pydub para MP3/M4A."""
     uploaded.seek(0)
     try:
         data, sr = sf.read(uploaded)
@@ -317,8 +317,9 @@ def load_audio_safe(uploaded):
         except Exception as e:
             raise RuntimeError(f"Formato no soportado: {e}")
 
+
 def draw_waveform(audio_mono, sr, color="#00d4a8", figsize=(12, 2.2), fake=False):
-    duration = len(audio_mono) / sr
+    duration = len(audio_mono) / sr if sr > 0 else 1
     fig, ax = plt.subplots(figsize=figsize)
     fig.patch.set_facecolor('#141a24')
     ax.set_facecolor('#141a24')
@@ -340,22 +341,20 @@ def draw_waveform(audio_mono, sr, color="#00d4a8", figsize=(12, 2.2), fake=False
     plt.tight_layout()
     return fig
 
+
 def generate_fake_waveform(seconds=10, sr=100):
-    """Genera una onda falsa realista para mostrarla antes de subir audio."""
     n = seconds * sr
     t = np.linspace(0, seconds, n)
-    # Mezcla de senoidales + ruido para parecer audio real
     wave = (
         np.sin(2 * np.pi * 0.5 * t) * 0.3 +
         np.sin(2 * np.pi * 2 * t) * 0.2 +
         np.sin(2 * np.pi * 5 * t) * 0.1
     )
-    # Envolvente tipo música
     envelope = np.abs(np.sin(2 * np.pi * 0.15 * t)) + 0.3
     wave = wave * envelope
-    # Ruido sutil
     wave += np.random.randn(n) * 0.03
     return wave.astype(np.float32), sr
+
 
 def detect_sections(audio_mono, sr):
     hop = int(sr * 0.5)
@@ -381,6 +380,7 @@ def detect_sections(audio_mono, sr):
         })
     return sections[:8]
 
+
 def estimate_bpm(audio_mono, sr):
     try:
         import librosa
@@ -389,8 +389,8 @@ def estimate_bpm(audio_mono, sr):
     except Exception:
         return None
 
+
 def get_cookie_file():
-    """Extrae cookies de Secrets y las guarda en archivo temporal."""
     try:
         content = st.secrets.get("YTDLP_COOKIES_CONTENT", None)
     except Exception:
@@ -402,6 +402,7 @@ def get_cookie_file():
     cookie_path.write_text(content, encoding="utf-8")
     cookie_path.chmod(0o600)
     return str(cookie_path)
+
 
 # ---------------------------------------------------------
 # TABS
@@ -429,7 +430,6 @@ with tabs[0]:
         key="editor_up"
     )
 
-    # --- VISOR SIEMPRE VISIBLE ---
     if up is None:
         st.markdown("#### 📊 Onda sonora (vista previa)")
         st.markdown("""
@@ -442,7 +442,6 @@ with tabs[0]:
         fake_wave, fake_sr = generate_fake_waveform(seconds=10, sr=100)
         st.pyplot(draw_waveform(fake_wave, fake_sr, color="#3a4453", fake=True))
 
-        # Métricas de ejemplo (en gris)
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("⏱ Duración", "— s")
         c2.metric("🎚 Sample rate", "— Hz")
@@ -520,7 +519,6 @@ with tabs[1]:
     st.markdown("### 🔊 Banco de efectos y sonidos")
     st.caption("Buscador especializado en **efectos de sonido**, no en canciones.")
 
-    # Categorías rápidas
     st.markdown("**Categorías rápidas:**")
     cat_cols = st.columns(6)
     quick_cats = ["🌧 Lluvia", "🚗 Tráfico", "🐦 Pájaros", "⚡ Trueno", "🚪 Puerta", "🌊 Mar"]
@@ -582,14 +580,12 @@ with tabs[2]:
             data, sr = load_audio_safe(up2)
             st.info(f"Origen: {sr} Hz · canales: {data.shape[1] if len(data.shape) > 1 else 1}")
 
-            # --- Elegir modo ---
             modo = st.radio(
                 "🎛️ Modo de procesamiento",
                 ["🔄 Convertir formato", "🎤 Separar stems (IA)"],
                 horizontal=True
             )
 
-            # =========== MODO CONVERTIR ===========
             if modo.startswith("🔄"):
                 c1, c2 = st.columns(2)
                 with c1:
@@ -632,7 +628,6 @@ with tabs[2]:
                         use_container_width=True
                     )
 
-            # =========== MODO SEPARAR STEMS ===========
             else:
                 st.warning(
                     "⚠️ **Spleeter** descarga ~1 GB en la primera ejecución. "
@@ -658,7 +653,6 @@ with tabs[2]:
                         with st.spinner(f"Separando con {n_stems}... esto puede tardar"):
                             tmpdir = tempfile.mkdtemp()
                             input_path = os.path.join(tmpdir, "input.wav")
-                            # Guardar input como WAV
                             sf.write(input_path, data, sr)
 
                             output_dir = os.path.join(tmpdir, "out")
@@ -667,7 +661,6 @@ with tabs[2]:
                             separator = Separator(f"spleeter:{n_stems}")
                             separator.separate_to_file(input_path, output_dir)
 
-                            # Localizar carpeta de salida
                             out_folder = os.path.join(output_dir, "input")
                             if not os.path.exists(out_folder):
                                 st.error("No se generó la separación.")
@@ -726,7 +719,6 @@ with tabs[3]:
             else:
                 stations = search_radio(q, limit=20)
 
-        # Contador destacado
         total = len(stations)
         st.markdown(f"""
         <div class="ss-stat-box">
@@ -748,7 +740,6 @@ with tabs[3]:
                 bitrate = s.get("bitrate", "—")
                 votes = s.get("votes", 0)
 
-                # Render tags como badges
                 tag_list = [t.strip() for t in tags_raw.split(",") if t.strip()][:6]
                 tags_html = " ".join([
                     f'<span class="ss-card-badge ss-badge-purple" style="font-size:0.65rem;">{t}</span>'
@@ -825,15 +816,13 @@ with tabs[5]:
     st.markdown("### 🔗 Extractor de audio desde vídeo / URL")
     st.caption("Soporta YouTube, Vimeo y +1000 sitios vía yt-dlp.")
 
-    # Estado de cookies
     cookie_path = get_cookie_file()
     if cookie_path:
         st.success("🍪 Cookies de YouTube cargadas desde Secrets — 403 resuelto")
     else:
         st.warning(
             "⚠️ **Sin cookies configuradas**. YouTube puede bloquear con 403. "
-            "Añade `YTDLP_COOKIES_CONTENT` en Streamlit Secrets. "
-            "[Ver guía](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)"
+            "Añade `YTDLP_COOKIES_CONTENT` en Streamlit Secrets."
         )
 
     url = st.text_input("🔗 Pega la URL del vídeo:", placeholder="https://www.youtube.com/watch?v=...")
@@ -864,7 +853,6 @@ with tabs[5]:
                     }],
                 }
 
-                # Inyectar cookies si existen
                 if cookie_path:
                     ydl_opts["cookiefile"] = cookie_path
 
@@ -896,21 +884,73 @@ with tabs[5]:
                 "Algunos vídeos también están protegidos por región o DRM."
             )
 
-    # Instrucciones de cookies
     with st.expander("🍪 Cómo configurar las cookies de YouTube"):
-        st.markdown("""
-        **Paso 1** — Instala una extensión para exportar cookies:
-        - Firefox: [YT-DLP Cookie Exporter](https://addons.mozilla.org/en-GB/firefox/addon/yt-dlp-cookie-exporter/)
-        - Chrome: [Get cookies.txt](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
+        guia_cookies = """
+**Paso 1** — Instala una extensión para exportar cookies:
 
-        **Paso 2** — Abre YouTube en **ventana de incógnito**, inicia sesión, visita `youtube.com/robots.txt`,
-        exporta las cookies y cierra esa ventana.
+- Firefox: [YT-DLP Cookie Exporter](https://addons.mozilla.org/en-GB/firefox/addon/yt-dlp-cookie-exporter/)
+- Chrome: [Get cookies.txt](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
 
-        **Paso 3** — En Streamlit Cloud → Settings → Secrets, añade:
+**Paso 2** — Abre YouTube en **ventana de incógnito**, inicia sesión, visita `youtube.com/robots.txt`, exporta las cookies y cierra esa ventana.
 
-        ```toml
-        YTDLP_COOKIES_CONTENT = \"\"\"
-        # Netscape HTTP Cookie File
-        .youtube.com\\tTRUE\\t/\\tTRUE\\t0\\tVISITOR_INFO1_LIVE\\txxxx
-        ...
-        \"\"\"
+**Paso 3** — En Streamlit Cloud → Settings → Secrets, añade el bloque `YTDLP_COOKIES_CONTENT` con el contenido del archivo de cookies exportado.
+
+**Paso 4** — Redespliega la app. Las cookies se inyectan automáticamente.
+
+⚠️ **Renuévalas cada 1-2 semanas** — YouTube las rota periódicamente.
+"""
+        st.markdown(guia_cookies)
+
+# =========================================================
+# TAB 7 — SHAZAM (solo subir fragmento)
+# =========================================================
+with tabs[6]:
+    st.markdown("### 🎤 Shazam — Reconocimiento de audio")
+    st.caption("Sube un fragmento para identificarlo.")
+
+    frag = st.file_uploader(
+        "Sube un fragmento corto (5-15 s)",
+        type=["wav", "mp3", "ogg", "m4a"],
+        key="shazam_up"
+    )
+    if frag:
+        st.audio(frag)
+        if st.button("🔎 Identificar canción", use_container_width=True):
+            with st.spinner("Analizando huella acústica..."):
+                hint = os.path.splitext(frag.name)[0].replace("_", " ").replace("-", " ")
+                results = search_itunes(hint, limit=3)
+
+            if results:
+                st.success("🎯 Coincidencias encontradas")
+                for r in results:
+                    art = (r.get("artworkUrl100") or "").replace("100x100", "300x300")
+                    c1, c2 = st.columns([1, 3])
+                    with c1:
+                        if art:
+                            safe_image(art)
+                    with c2:
+                        st.markdown(f"""
+                        <div class="ss-card">
+                            <span class="ss-card-badge">MATCH</span>
+                            <div class="ss-card-title">{r.get('trackName','—')}</div>
+                            <div class="ss-card-meta">
+                            👤 {r.get('artistName','—')}<br>
+                            💿 {r.get('collectionName','—')}<br>
+                            📅 {r.get('releaseDate','—')[:10]}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        if r.get("previewUrl"):
+                            st.audio(r["previewUrl"])
+            else:
+                st.warning(
+                    "No se pudo identificar. Prueba a renombrar el archivo con el nombre "
+                    "de la canción como pista."
+                )
+
+    st.markdown("---")
+    st.caption(
+        "💡 **Reconocimiento real**: para fingerprinting auténtico (escuchar y decir "
+        "qué canción es), integra **AudD API** (audd.io) o **ACRCloud**. "
+        "La versión actual usa el nombre del archivo como pista."
+    )
