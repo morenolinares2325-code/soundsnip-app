@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import requests
 import io
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 from scipy.signal import find_peaks
@@ -19,11 +20,45 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# ---------------------------------------------------------
+# SETUP DE DENO (runtime JS para yt-dlp)
+# ---------------------------------------------------------
+def setup_deno():
+    """Descarga Deno si no está. Se ejecuta una vez por sesión."""
+    deno_dir = "/tmp/deno_bin"
+    deno_path = os.path.join(deno_dir, "deno")
+
+    if os.path.exists(deno_path):
+        os.environ["PATH"] = deno_dir + os.pathsep + os.environ.get("PATH", "")
+        return deno_path
+
+    os.makedirs(deno_dir, exist_ok=True)
+    url = "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip"
+    zip_path = "/tmp/deno.zip"
+
+    try:
+        subprocess.run(
+            ["wget", "-q", url, "-O", zip_path],
+            check=True, timeout=90
+        )
+        subprocess.run(
+            ["unzip", "-o", zip_path, "-d", deno_dir],
+            check=True, timeout=30
+        )
+        os.chmod(deno_path, 0o755)
+        os.environ["PATH"] = deno_dir + os.pathsep + os.environ.get("PATH", "")
+        return deno_path
+    except Exception:
+        return None
+
+
+DENO_PATH = setup_deno()
+
 st.sidebar.caption(f"Streamlit v{st.__version__}")
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🎛️ Info")
-st.sidebar.caption("SoundSnip Studio PRO v4")
-st.sidebar.caption("Todos los módulos activos")
+st.sidebar.caption("SoundSnip Studio PRO v5")
+st.sidebar.caption(f"Deno: {'✅ activo' if DENO_PATH else '⚠️ no disponible'}")
 
 # ---------------------------------------------------------
 # CSS INSTITUCIONAL
@@ -220,7 +255,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 # ---------------------------------------------------------
 st.markdown("""
 <div class="ss-hero">
-    <h1>✂️ SoundSnip Studio <span style="color:#7c5cff;font-size:1rem;">PRO v4</span></h1>
+    <h1>✂️ SoundSnip Studio <span style="color:#7c5cff;font-size:1rem;">PRO v5</span></h1>
     <p>Edición · Análisis · Procesamiento · Reconocimiento · Conversión · Radio</p>
 </div>
 """, unsafe_allow_html=True)
@@ -391,7 +426,6 @@ def estimate_bpm(audio_mono, sr):
 
 
 def get_cookie_file():
-    """Lee cookies de Secrets y las escribe en /tmp. Silencioso."""
     try:
         content = st.secrets.get("YTDLP_COOKIES_CONTENT", None)
     except Exception:
@@ -405,7 +439,6 @@ def get_cookie_file():
     return str(cookie_path)
 
 
-# --- Procesadores de audio ---
 def apply_fade(audio, sr, fade_in_sec=0, fade_out_sec=0):
     out = audio.copy()
     if fade_in_sec > 0:
@@ -839,7 +872,7 @@ with tabs[4]:
             st.warning("Sin resultados.")
 
 # =========================================================
-# TAB 6 — VIDEO → AUDIO (con yt-dlp arreglado, sin avisos técnicos)
+# TAB 6 — VIDEO → AUDIO (con Deno + cookies, sin avisos técnicos)
 # =========================================================
 with tabs[5]:
     st.markdown("### 🔗 Video → Audio")
@@ -866,9 +899,6 @@ with tabs[5]:
                 out_tmpl = os.path.join(tmpdir, "%(title)s.%(ext)s")
 
                 ydl_opts = {
-                    # --- Estrategia de formato mejorada ---
-                    # Intenta mejor video+audio combinado, luego mejor video, luego mejor audio.
-                    # Evita el error "Requested format is not available"
                     "format": "best/bestvideo+bestaudio/bestaudio/bestvideo",
                     "ignoreerrors": True,
                     "outtmpl": out_tmpl,
@@ -878,7 +908,7 @@ with tabs[5]:
                     "nocheckcertificate": True,
                     "extractor_args": {
                         "youtube": {
-                            "player_client": ["android", "web_safari", "ios"]
+                            "player_client": ["android", "web_safari", "ios", "mweb"]
                         }
                     },
                     "postprocessors": [{
@@ -888,6 +918,11 @@ with tabs[5]:
                     }],
                 }
 
+                # Inyectar Deno si está disponible
+                if DENO_PATH:
+                    ydl_opts["js_runtimes"] = ["deno"]
+
+                # Inyectar cookies si están configuradas
                 if cookie_path:
                     ydl_opts["cookiefile"] = cookie_path
 
